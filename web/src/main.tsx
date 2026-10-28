@@ -26,7 +26,7 @@ import { AuditLog } from './pages/admin/AuditLog';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RepoProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <Routes>
           <Route element={<Shell />}>
             <Route index element={<Dashboard />} />
