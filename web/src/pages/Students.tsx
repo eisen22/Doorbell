@@ -1,0 +1,68 @@
+import { useSearchParams } from 'react-router-dom';
+import { MessageSquare, MessageSquareOff, AlertTriangle, BadgeCheck, HelpCircle } from 'lucide-react';
+import { displayPhMobile } from '../domain/rules';
+import { useLive } from '../lib/repo';
+import { Avatar, Card, Empty, Skeleton, StatusChip } from '../components/ui';
+
+export function Students() {
+  const [params, setParams] = useSearchParams();
+  const q = (params.get('q') ?? '').toLowerCase();
+  const { data } = useLive(async (r) => {
+    const session = await r.getSession();
+    const today = await r.getToday();
+    const section = await r.getSection(session.sectionId!);
+    return { section, roster: await r.getRoster(section.id, today.date) };
+  });
+  if (!data) return <div className="page"><Skeleton h={44} w={240} /><div className="card"><Skeleton h={400} /></div></div>;
+
+  const rows = data.roster.filter((r) =>
+    !q || `${r.student.firstName} ${r.student.lastName} ${r.guardian?.name ?? ''}`.toLowerCase().includes(q));
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <p className="eyebrow">{data.section.name} · {data.roster.length} learners</p>
+          <h1>My Students</h1>
+        </div>
+        <input className="input" placeholder="Filter by child or guardian" value={params.get('q') ?? ''} onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {})} aria-label="Filter students" />
+      </div>
+      <Card>
+        {rows.length === 0 ? <Empty title="No match" hint="Try another name." /> : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr><th>Learner</th><th>Today</th><th>Guardian</th><th>Mobile</th><th>SMS</th><th>Streak</th><th>ID card</th></tr>
+              </thead>
+              <tbody>
+                {rows.map(({ student, guardian, record, streak }) => (
+                  <tr key={student.id}>
+                    <td><div className="cell-person"><Avatar first={student.firstName} last={student.lastName} tone={data.section.color} /><span><strong>{student.lastName}, {student.firstName}</strong><span className="muted small">{student.sex === 'M' ? 'Boy' : 'Girl'} · born {student.birthdate}</span></span></div></td>
+                    <td><StatusChip status={record?.status ?? 'waiting'} /></td>
+                    <td>{guardian ? <><strong>{guardian.name}</strong><span className="muted small block">{guardian.relationship}{guardian.studentIds.length > 1 ? ` · ${guardian.studentIds.length} children` : ''}</span></> : '—'}</td>
+                    <td>
+                      {guardian ? <span className="mono">{displayPhMobile(guardian.mobile)}</span> : '—'}
+                      {guardian && <NumberStatus status={guardian.numberStatus} />}
+                    </td>
+                    <td>{guardian?.smsConsent
+                      ? <span className="tag tag-ok"><MessageSquare size={13} /> {guardian.preferredLanguage === 'fil' ? 'Filipino' : 'English'}</span>
+                      : <span className="tag tag-off"><MessageSquareOff size={13} /> No consent</span>}</td>
+                    <td>{streak >= 2 ? <span className={`streak ${streak >= 3 ? 'streak-hot' : ''}`}>{streak} days</span> : <span className="muted">—</span>}</td>
+                    <td><span className={`tag ${student.qrStatus === 'active' ? 'tag-ok' : 'tag-bad'}`}>{student.qrStatus === 'active' ? 'Active' : 'Revoked'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      <p className="muted small">Student records, guardians and ID cards are managed by the school admin. Contact them to fix a number or reissue a lost card.</p>
+    </div>
+  );
+}
+
+function NumberStatus({ status }: { status: 'unverified' | 'verified' | 'failed' }) {
+  if (status === 'verified') return <span className="num-status ok" title="Verified"><BadgeCheck size={14} /> Verified</span>;
+  if (status === 'failed') return <span className="num-status bad" title="SMS failed"><AlertTriangle size={14} /> Needs update</span>;
+  return <span className="num-status" title="Not yet confirmed"><HelpCircle size={14} /> Unverified</span>;
+}
