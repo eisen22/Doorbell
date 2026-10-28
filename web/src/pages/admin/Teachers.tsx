@@ -10,6 +10,7 @@ export function Teachers() {
   const [edit, setEdit] = useState<TeacherInput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
   const { data } = useLive(async (r) => ({ teachers: await r.listTeachers(), sections: await r.listSections() }));
   if (!data) return <div className="page"><Skeleton h={400} /></div>;
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2800); };
@@ -25,8 +26,8 @@ export function Teachers() {
       mobile = n;
     }
     try {
-      await repo.saveTeacher({ ...edit, name: edit.name.trim(), email: edit.email.trim(), mobile });
-      flash(edit.id ? 'Teacher updated' : 'Teacher added. A sign-in account will be created in the cloud step.');
+      const res = await repo.saveTeacher({ ...edit, name: edit.name.trim(), email: edit.email.trim(), mobile });
+      if (res.tempPassword) setCreated({ name: res.teacher.name, email: res.teacher.email, password: res.tempPassword }); else flash('Teacher updated');
       setEdit(null);
     } catch (e) { setError((e as Error).message); }
   };
@@ -63,7 +64,7 @@ export function Teachers() {
           </table>
         </div>
       </Card>
-      <p className="muted small note-row"><Info size={14} /> Assign a teacher to a class on the Sections page. When accounts move to the cloud, adding a teacher also creates their sign-in and sends a temporary password.</p>
+      <p className="muted small note-row"><Info size={14} /> Assign a teacher to a class on the Sections page. Adding a teacher creates their sign-in account with a temporary password. They can change it with Forgot password.</p>
 
       {edit && (
         <Modal title={edit.id ? 'Edit teacher' : 'Add teacher'} onClose={() => setEdit(null)} footer={<>
@@ -74,6 +75,13 @@ export function Teachers() {
           <label className="field"><span>Email (used to sign in)</span><input type="email" className="input" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></label>
           <label className="field"><span>Mobile (optional, for alerts)</span><input className="input" value={edit.mobile} onChange={(e) => setEdit({ ...edit, mobile: e.target.value })} placeholder="0917 123 4567" /></label>
           {error && <p className="error">{error}</p>}
+        </Modal>
+      )}
+      {created && (
+        <Modal title={"Account created"} onClose={() => setCreated(null)} footer={<button className="btn btn-ink" onClick={() => setCreated(null)}>Done</button>}>
+          <p>Give these to <b>{created.name}</b> privately. They should change the password after signing in.</p>
+          <dl className="dl cred"><dt>Email</dt><dd>{created.email}</dd><dt>Temporary password</dt><dd><code>{created.password}</code></dd></dl>
+          <button className="btn btn-sm" onClick={() => navigator.clipboard?.writeText(`Doorbell sign-in\nEmail: ${created.email}\nPassword: ${created.password}`)}>Copy</button>
         </Modal>
       )}
       <Toast message={toast} />

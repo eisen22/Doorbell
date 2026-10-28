@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './styles/tokens.css';
 import './styles/app.css';
 import './styles/admin.css';
@@ -22,12 +22,16 @@ import { AdminStudents } from './pages/admin/AdminStudents';
 import { QrCards } from './pages/admin/QrCards';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { AuditLog } from './pages/admin/AuditLog';
+import { AbsenceWatch } from './pages/admin/AbsenceWatch';
+import { Login } from './pages/Login';
+import { SmsMessages } from './pages/SmsMessages';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RepoProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <Routes>
+          <Route path="login" element={<Login />} />
           <Route element={<Shell />}>
             <Route index element={<Dashboard />} />
             <Route path="attendance" element={<Attendance />} />
@@ -37,6 +41,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="reports" element={<Reports />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="sms" element={<SmsMessages />} />
+            <Route path="admin/sms" element={<SmsMessages />} />
+            <Route path="admin/absences" element={<AbsenceWatch />} />
             <Route path="admin" element={<AdminDashboard />} />
             <Route path="admin/calendar" element={<AdminCalendar />} />
             <Route path="admin/sections" element={<Sections />} />
@@ -46,6 +53,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="admin/settings" element={<AdminSettings />} />
             <Route path="admin/audit" element={<AuditLog />} />
           </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </RepoProvider>

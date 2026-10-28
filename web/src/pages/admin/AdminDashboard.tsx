@@ -31,7 +31,7 @@ export function AdminDashboard() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">Good day, {session.name.split(' ')[0]}</p><h1>School overview</h1></div>
+        <div><p className="eyebrow">Good day, {session?.name.split(' ')[0] ?? ''}</p><h1>School overview</h1></div>
         <p className="muted">{format(parseISO(today.date), 'EEEE, MMMM d, yyyy')}</p>
       </div>
       <div className="kpis">

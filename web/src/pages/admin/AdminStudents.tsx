@@ -101,7 +101,7 @@ export function AdminStudents() {
                     <tr key={r.student.id} className={left ? 'dim' : ''}>
                       <td><input type="checkbox" checked={selected.has(r.student.id)} onChange={() => toggle(r.student.id)} aria-label={`Select ${r.student.firstName}`} /></td>
                       <td><div className="cell-person"><Avatar first={r.student.firstName} last={r.student.lastName} tone={r.section?.color} /><span><strong>{r.student.lastName}, {r.student.firstName}</strong><span className="muted small">{r.student.sex === 'M' ? 'Boy' : 'Girl'} · {r.student.birthdate}{r.student.lrn ? ` · LRN ${r.student.lrn}` : ''}</span></span></div></td>
-                      <td>{left ? <span className="tag tag-off">{r.enrollment!.status === 'transferred' ? 'Transferred' : 'Dropped'} {r.enrollment!.effectiveDate}</span>
+                      <td>{left ? <span className="tag tag-off">{r.enrollment!.status === 'transferred' ? 'Transferred' : 'Dropped'} {r.enrollment!.endDate}</span>
                         : r.section ? <span className="tag" style={{ background: r.section.color }}>{r.section.name}</span> : <span className="tag tag-warn">Not in a section</span>}</td>
                       <td>{r.guardian ? <>{r.guardian.name}<span className="muted small block">{r.guardian.relationship}{r.guardian.studentIds.length > 1 ? ` · ${r.guardian.studentIds.length} children` : ''}</span></> : '—'}</td>
                       <td className="mono">{r.guardian ? displayPhMobile(r.guardian.mobile) : '—'}{r.guardian?.numberStatus === 'failed' && <span className="num-status bad"><AlertTriangle size={13} /> Needs update</span>}</td>

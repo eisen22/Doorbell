@@ -15,7 +15,7 @@ export function Reports() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const { data } = useLive(async (r) => {
-    const session = await r.getSession();
+    const session = (await r.getSession())!;
     const today = await r.getToday();
     return { session, today, section: await r.getSection(session.sectionId!), year: await r.getSchoolYear() };
   });

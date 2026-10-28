@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { Lock, ShieldCheck, MessageSquareOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { autoFinalizeTime, emptyCounts, recentSchoolDays, addDays, isSchoolDay, to12h } from '../domain/rules';
 import type { AttendanceStatus, ISODate, RosterRow } from '../domain/types';
 import { useLive, useRepo } from '../lib/repo';
-import { Avatar, Card, Empty, Modal, Skeleton, StatusChip, Toast } from '../components/ui';
+import { Avatar, Card, Empty, Modal, Skeleton, StatusChip, StreakChip, Toast } from '../components/ui';
 
 const OPTIONS: AttendanceStatus[] = ['present', 'late', 'absent', 'excused'];
 
@@ -12,7 +13,11 @@ interface Pending { row: RosterRow; status: AttendanceStatus }
 
 export function Attendance() {
   const repo = useRepo();
-  const [date, setDate] = useState<ISODate | null>(null);
+  const [params, setParams] = useSearchParams();
+  const date = params.get('date');
+  const statusFilter = params.get('status');
+  const setDate = (d: ISODate) => { const p = new URLSearchParams(params); p.set('date', d); setParams(p); };
+  const clearFilter = () => { const p = new URLSearchParams(params); p.delete('status'); setParams(p); };
   const [pending, setPending] = useState<Pending | null>(null);
   const [text, setText] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -20,7 +25,7 @@ export function Attendance() {
   const [error, setError] = useState<string | null>(null);
 
   const { data } = useLive(async (r) => {
-    const session = await r.getSession();
+    const session = (await r.getSession())!;
     const today = await r.getToday();
     const section = await r.getSection(session.sectionId!);
     const calendar = await r.getCalendar();
@@ -112,7 +117,10 @@ export function Attendance() {
             <p className="hint">Auto-confirms at {to12h(autoFinalizeTime(section.schedule))} if you do not confirm. Children not scanned by then are marked absent.</p>
           )}
           <ul className="roster">
-            {roster.map((row) => {
+            {statusFilter && (
+              <div className="filter-note"><span>Showing <b>{statusFilter === 'waiting' ? 'not yet scanned' : statusFilter}</b> only</span><button className="link-btn" onClick={clearFilter}>Show everyone</button></div>
+            )}
+            {roster.filter((row) => !statusFilter || (statusFilter === 'waiting' ? !row.record : row.record?.status === statusFilter)).map((row) => {
               const st = row.record?.status;
               return (
                 <li key={row.student.id} className="roster-row">
@@ -122,7 +130,7 @@ export function Attendance() {
                     <span className="muted small">
                       {row.record?.scannedAt ? `Scanned ${to12h(row.record.scannedAt)}` : row.record ? (row.record.source === 'auto' ? 'Not scanned' : 'Set manually') : 'Not yet scanned'}
                       {row.record?.excusedNote && ` · ${row.record.excusedNote}`}
-                      {row.streak >= 2 && <span className={`streak inline ${row.streak >= 3 ? 'streak-hot' : ''}`}>{row.streak}-day streak</span>}
+                      {row.streak.count >= 2 && <> <StreakChip s={row.streak} /></>}
                       {row.guardian && !row.guardian.smsConsent && <span className="no-sms" title="No SMS consent"><MessageSquareOff size={13} /> No SMS</span>}
                     </span>
                   </div>

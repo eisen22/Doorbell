@@ -2,13 +2,13 @@ import { useSearchParams } from 'react-router-dom';
 import { MessageSquare, MessageSquareOff, AlertTriangle, BadgeCheck, HelpCircle } from 'lucide-react';
 import { displayPhMobile } from '../domain/rules';
 import { useLive } from '../lib/repo';
-import { Avatar, Card, Empty, Skeleton, StatusChip } from '../components/ui';
+import { Avatar, Card, Empty, Skeleton, StatusChip, StreakChip } from '../components/ui';
 
 export function Students() {
   const [params, setParams] = useSearchParams();
   const q = (params.get('q') ?? '').toLowerCase();
   const { data } = useLive(async (r) => {
-    const session = await r.getSession();
+    const session = (await r.getSession())!;
     const today = await r.getToday();
     const section = await r.getSection(session.sectionId!);
     return { section, roster: await r.getRoster(section.id, today.date) };
@@ -47,7 +47,7 @@ export function Students() {
                     <td>{guardian?.smsConsent
                       ? <span className="tag tag-ok"><MessageSquare size={13} /> {guardian.preferredLanguage === 'fil' ? 'Filipino' : 'English'}</span>
                       : <span className="tag tag-off"><MessageSquareOff size={13} /> No consent</span>}</td>
-                    <td>{streak >= 2 ? <span className={`streak ${streak >= 3 ? 'streak-hot' : ''}`}>{streak} days</span> : <span className="muted">—</span>}</td>
+                    <td>{streak.count >= 2 ? <StreakChip s={streak} /> : <span className="muted">-</span>}</td>
                     <td><span className={`tag ${student.qrStatus === 'active' ? 'tag-ok' : 'tag-bad'}`}>{student.qrStatus === 'active' ? 'Active' : 'Revoked'}</span></td>
                   </tr>
                 ))}

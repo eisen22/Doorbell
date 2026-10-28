@@ -1,16 +1,20 @@
-// THE CONTRACT. The UI only talks to this interface.
-// Adapters: mock (now) and firestore (Cloud step). Change this file only on purpose.
+// THE CONTRACT. Every page talks to this interface only.
+// One implementation (Engine) runs in two modes: demo (in memory) and cloud (Firebase).
 import type {
   AppNotification, AttendanceRecord, AttendanceStatus, AuditEntry, CalendarDay, DayConfirmation, Enrollment,
-  Guardian, ISODate, Lang, Role, RosterRow, SchoolSettings, SchoolYear, Section, SmsMessage, Student, Teacher,
+  Guardian, ISODate, Lang, Role, RosterRow, SchoolSettings, SchoolYear, Section, SmsMessage, StreakInfo, Student, Teacher,
 } from '../domain/types';
 
 export interface Session {
-  userId: string;
+  uid: string;
   name: string;
+  email: string;
   role: Role;
+  teacherId?: string;
   sectionId: string | null; // teacher's own section
 }
+
+export interface DemoAccount { email: string; password: string; label: string }
 
 export type ScanResult =
   | { kind: 'recorded'; student: Student; status: 'present' | 'late'; time: string }
@@ -19,8 +23,7 @@ export type ScanResult =
   | { kind: 'unknown' }
   | { kind: 'revoked'; student: Student }
   | { kind: 'wrong_section'; student: Student }
-  | { kind: 'not_school_day' }
-  | { kind: 'locked' };
+  | { kind: 'not_school_day' };
 
 export interface TeacherInput {
   id?: string;
@@ -61,6 +64,14 @@ export interface StudentRow {
   section?: Section;
 }
 
+export interface AttentionRow {
+  student: Student;
+  guardian?: Guardian;
+  section: Section;
+  streak: StreakInfo;
+  smsSent: boolean;
+}
+
 export interface SetStatusInput {
   sectionId: string;
   date: ISODate;
@@ -70,56 +81,67 @@ export interface SetStatusInput {
   reason?: string; // required after the day is confirmed
 }
 
+export interface TodayInfo {
+  date: ISODate; // school day shown on dashboards (today, or the last school day)
+  actualDate: ISODate; // today's real date in Manila
+  time: string; // 'HH:mm'
+  simulated: boolean; // demo clock in use
+  isSchoolDay: boolean; // whether actualDate is a class day
+}
+
 export interface Repository {
-  getSession(): Promise<Session>;
-  getToday(): Promise<{ date: ISODate; time: string; simulated?: boolean }>;
+  readonly mode: 'demo' | 'cloud';
+
+  /* auth */
+  getSession(): Promise<Session | null>;
+  signIn(email: string, password: string): Promise<Session>;
+  signOut(): Promise<void>;
+  sendPasswordReset(email: string): Promise<void>;
+  demoAccounts(): DemoAccount[];
+
+  /* shared */
+  getToday(): Promise<TodayInfo>;
   getSettings(): Promise<SchoolSettings>;
   updateSettings(patch: Partial<SchoolSettings>): Promise<SchoolSettings>;
   getSchoolYear(): Promise<SchoolYear>;
+  updateSchoolYear(patch: Partial<Pick<SchoolYear, 'name' | 'start' | 'end'>>): Promise<void>;
   listSections(): Promise<Section[]>;
   getSection(id: string): Promise<Section>;
   getCalendar(): Promise<CalendarDay[]>;
 
+  /* teacher */
   getRoster(sectionId: string, date: ISODate): Promise<RosterRow[]>;
   getAttendanceRange(sectionId: string, from: ISODate, to: ISODate): Promise<AttendanceRecord[]>;
   getConfirmation(sectionId: string, date: ISODate): Promise<DayConfirmation | null>;
-
   recordScan(input: { qrToken: string; sectionId?: string }): Promise<ScanResult>;
   setStatus(input: SetStatusInput): Promise<void>;
   confirmDay(sectionId: string, date: ISODate): Promise<DayConfirmation>;
+  simulateScan(sectionId: string): Promise<ScanResult>;
 
   listNotifications(): Promise<AppNotification[]>;
   markNotificationsRead(): Promise<void>;
   listSms(limit?: number): Promise<SmsMessage[]>;
   resendSms(id: string): Promise<void>;
+  listAttention(minDays?: number): Promise<AttentionRow[]>;
+
+  /* admin */
   listAudit(limit?: number): Promise<AuditEntry[]>;
   logAudit(action: string, target: string, detail?: string): Promise<void>;
-
-  /** Demo helper: scan a random student who has not arrived yet. */
-  simulateScan(sectionId: string): Promise<ScanResult>;
-
-  /* ---------- admin ---------- */
-  /** Demo only: switch the signed-in user between the teacher and admin accounts. */
-  setRole(role: 'teacher' | 'admin'): Promise<Session>;
-
   saveCalendarDays(days: CalendarDay[]): Promise<void>;
   removeCalendarDays(dates: ISODate[]): Promise<void>;
   resetCalendar(days: CalendarDay[]): Promise<void>;
   declareSuspension(date: ISODate, label: string): Promise<void>;
-
   listTeachers(): Promise<Teacher[]>;
-  saveTeacher(input: TeacherInput): Promise<Teacher>;
+  saveTeacher(input: TeacherInput): Promise<{ teacher: Teacher; tempPassword?: string }>;
   setTeacherActive(id: string, active: boolean): Promise<void>;
-
   saveSection(input: SectionInput): Promise<Section>;
   archiveSection(id: string, archived: boolean): Promise<void>;
-
   listStudentRows(): Promise<StudentRow[]>;
   saveStudent(input: StudentInput): Promise<Student>;
   importStudents(inputs: StudentInput[]): Promise<{ created: number; linkedSiblings: number }>;
   assignStudents(assignments: Record<string, string | null>, label: string): Promise<void>;
   undoLastAssign(): Promise<string | null>;
-  setEnrollmentStatus(studentId: string, status: Enrollment['status'], effectiveDate: ISODate): Promise<void>;
+  setEnrollmentStatus(studentId: string, status: Enrollment['status'], date: ISODate): Promise<void>;
   reissueQr(studentId: string): Promise<Student>;
   sendTestSms(to: string): Promise<SmsMessage>;
 

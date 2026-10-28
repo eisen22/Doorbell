@@ -3,7 +3,7 @@ import { DAY_KIND_META, dayKind, type DayKind } from '../domain/calendar';
 import { addDays, isoWeekday } from '../domain/rules';
 import type { CalendarDay, ISODate, SchoolYear } from '../domain/types';
 
-export const LEGEND: DayKind[] = ['class', 'event', 'halfday', 'holiday', 'suspension', 'break', 'makeup'];
+export const LEGEND: DayKind[] = ['class', 'exam', 'event', 'halfday', 'holiday', 'suspension', 'break', 'makeup'];
 
 interface Props {
   year: Pick<SchoolYear, 'start' | 'end'>;

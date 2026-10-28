@@ -1,12 +1,40 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { MockRepository } from '../data/mock/mockRepo';
+import { manilaToday } from '../domain/rules';
+import { DemoClock, Engine, noopPersistence } from '../data/engine';
+import { buildDemoState, demoAuth } from '../data/mock/seed';
+import { cloudConfigured, createCloudEngine } from '../data/firebase/cloud';
 import type { Repository } from '../data/repository';
 
 const RepoCtx = createContext<Repository | null>(null);
+const DEMO_KEY = 'doorbell-demo-user';
 
-/** Swap MockRepository for the Firestore adapter in the Cloud step. Nothing else changes. */
+/** Cloud mode when web/.env.local has the Firebase settings; otherwise demo mode with built-in data. */
+function createRepository(): Repository {
+  if (cloudConfigured()) return createCloudEngine();
+  const clock = new DemoClock();
+  let engine: Engine;
+  const auth = demoAuth(() => engine);
+  engine = new Engine('demo', buildDemoState(manilaToday(), clock), noopPersistence, {
+    ...auth,
+    async signIn(email, password) {
+      const acc = await auth.signIn(email, password);
+      try { sessionStorage.setItem(DEMO_KEY, acc.uid); } catch { /* storage blocked */ }
+      setTimeout(() => engine.catchUp(), 0);
+      return acc;
+    },
+    async signOut() { try { sessionStorage.removeItem(DEMO_KEY); } catch { /* ignore */ } },
+  }, clock);
+  // Stay signed in across page reloads in the same tab.
+  try {
+    const uid = sessionStorage.getItem(DEMO_KEY);
+    const acc = uid ? engine.s.users.get(uid) : undefined;
+    if (acc) engine.setSession(acc);
+  } catch { /* ignore */ }
+  return engine;
+}
+
 export function RepoProvider({ children }: { children: ReactNode }) {
-  const [repo] = useState<Repository>(() => new MockRepository());
+  const [repo] = useState<Repository>(createRepository);
   return <RepoCtx.Provider value={repo}>{children}</RepoCtx.Provider>;
 }
 
@@ -29,7 +57,6 @@ export function useLive<T>(load: (repo: Repository) => Promise<T>, deps: unknown
       const value = await loadRef.current(repo);
       setData(value);
     } catch (e) {
-      // Usually a page for the other role while the portal is switching; the shell redirects.
       console.debug('useLive load skipped:', (e as Error).message);
     }
     setLoading(false);

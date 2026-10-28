@@ -14,7 +14,6 @@ function describe(r: ScanResult): { tone: 'ok' | 'warn' | 'bad'; title: string; 
     case 'revoked': return { tone: 'bad', title: 'Card revoked', sub: `${r.student.firstName}'s old card was replaced. Ask the admin for the new one.` };
     case 'wrong_section': return { tone: 'bad', title: 'Different section', sub: `${r.student.firstName} is not in this class.` };
     case 'not_school_day': return { tone: 'bad', title: 'No class today', sub: 'Holiday, weekend or suspension.' };
-    case 'locked': return { tone: 'bad', title: 'Day is locked', sub: 'Ask the teacher to edit with a reason.' };
   }
 }
 
@@ -23,7 +22,7 @@ export function Scanner() {
   const [token, setToken] = useState('');
   const [last, setLast] = useState<ScanResult | null>(null);
   const { data } = useLive(async (r) => {
-    const s = await r.getSession();
+    const s = (await r.getSession())!;
     const section = await r.getSection(s.sectionId!);
     const today = await r.getToday();
     const roster = await r.getRoster(section.id, today.date);

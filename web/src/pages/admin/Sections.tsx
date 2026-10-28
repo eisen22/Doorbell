@@ -10,7 +10,7 @@ export const SECTION_COLORS = ['#FFD9A8', '#D8F5A2', '#E4D6FA', '#CDE8F7', '#FBD
 
 const blank = (): SectionInput => ({
   name: 'Kindergarten I - ', color: SECTION_COLORS[3], capacity: 25, teacherId: null,
-  schedule: { classDays: [1, 2, 3, 4, 5], startTime: '08:00', scanWindowMins: 30, lateCutoffMins: 15, autoFinalizeMins: 45 },
+  schedule: { classDays: [1, 2, 3, 4, 5], startTime: '08:00', endTime: '11:30', scanWindowMins: 30, lateCutoffMins: 15, autoFinalizeMins: 45 },
 });
 
 export function Sections() {
@@ -32,6 +32,7 @@ export function Sections() {
   const save = async () => {
     if (!edit) return;
     if (!edit.name.trim()) { setError('Give the section a name.'); return; }
+    if (edit.schedule.endTime <= edit.schedule.startTime) { setError('End of classes must be after the start.'); return; }
     try {
       await repo.saveSection({ ...edit, name: edit.name.trim() });
       setEdit(null);
@@ -67,7 +68,7 @@ export function Sections() {
               </header>
               <p className="sec-teacher">{teacherName(s.teacherId) ?? <i>No teacher assigned</i>}</p>
               <div className="sec-meta">
-                <span><Clock size={14} /> {to12h(s.schedule.startTime)}, late after {to12h(fromMinutes(toMinutes(s.schedule.startTime) + s.schedule.lateCutoffMins))}</span>
+                <span><Clock size={14} /> {to12h(s.schedule.startTime)} to {to12h(s.schedule.endTime)} · late after {to12h(fromMinutes(toMinutes(s.schedule.startTime) + s.schedule.lateCutoffMins))}</span>
                 <span><Users size={14} /> {n} / {s.capacity} learners</span>
               </div>
               <div className="progress"><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.min(100, (n / s.capacity) * 100)}%` }} /></div><span>{Math.round((n / s.capacity) * 100)}%</span></div>
@@ -102,6 +103,9 @@ export function Sections() {
           </label>
           <div className="form-row">
             <label className="field"><span>Class starts</span><input type="time" className="input" value={edit.schedule.startTime} onChange={(e) => setEdit({ ...edit, schedule: { ...edit.schedule, startTime: e.target.value } })} /></label>
+            <label className="field"><span>End of classes</span><input type="time" className="input" value={edit.schedule.endTime} onChange={(e) => setEdit({ ...edit, schedule: { ...edit.schedule, endTime: e.target.value } })} /></label>
+          </div>
+          <div className="form-row">
             <label className="field"><span>Late after (minutes)</span><input type="number" min={0} max={120} className="input" value={edit.schedule.lateCutoffMins} onChange={(e) => setEdit({ ...edit, schedule: { ...edit.schedule, lateCutoffMins: Number(e.target.value) } })} /></label>
           </div>
           <div className="form-row">

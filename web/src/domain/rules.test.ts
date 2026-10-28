@@ -6,7 +6,7 @@ import {
 import type { CalendarDay, SectionSchedule } from './types';
 
 const sched: SectionSchedule = {
-  classDays: [1, 2, 3, 4, 5], startTime: '08:00', scanWindowMins: 30, lateCutoffMins: 15, autoFinalizeMins: 45,
+  classDays: [1, 2, 3, 4, 5], startTime: '08:00', endTime: '11:30', scanWindowMins: 30, lateCutoffMins: 15, autoFinalizeMins: 45,
 };
 const cal: CalendarDay[] = [
   { date: '2026-11-02', type: 'holiday', label: "All Souls' Day" }, // Monday

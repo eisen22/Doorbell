@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { CloudRain, RotateCcw, Pencil, Trash2 } from 'lucide-react';
+import { CloudRain, RotateCcw, Pencil, Trash2, Flag } from 'lucide-react';
 import { DAY_KIND_META, DEPED_SY_2026_2027, countClassDays, dayKind, eachDate } from '../../domain/calendar';
 import { isoWeekday } from '../../domain/rules';
 import type { CalendarDay, CalendarDayType, ISODate } from '../../domain/types';
@@ -13,6 +13,7 @@ type EditType = CalendarDayType | 'class';
 const TYPE_OPTIONS: { value: EditType; hint: string }[] = [
   { value: 'class', hint: 'Normal class day (removes any special entry)' },
   { value: 'event', hint: 'Classes continue, with a school event' },
+  { value: 'exam', hint: 'Classes continue: summative test or term exam' },
   { value: 'halfday', hint: 'Classes for half the day' },
   { value: 'holiday', hint: 'No classes, regular or special holiday' },
   { value: 'suspension', hint: 'No classes, e.g. weather or emergency' },
@@ -27,6 +28,7 @@ export function AdminCalendar() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [suspend, setSuspend] = useState<{ date: ISODate; label: string } | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
+  const [yearDraft, setYearDraft] = useState<{ start: ISODate; end: ISODate } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const { data } = useLive(async (r) => ({ year: await r.getSchoolYear(), calendar: await r.getCalendar(), today: await r.getToday() }));
   if (!data) return <div className="page"><Skeleton h={500} /></div>;
@@ -71,6 +73,14 @@ export function AdminCalendar() {
           <button className="btn btn-danger" onClick={() => setSuspend({ date: today.date, label: 'Class suspension: weather' })}><CloudRain size={17} /> Declare suspension</button>
         </div>
       </div>
+      <Card title="First and last day of classes" action={<Flag size={18} />}>
+        <div className="form-row year-row">
+          <label className="field"><span>First day of classes</span><input type="date" className="input" value={yearDraft?.start ?? year.start} onChange={(e) => setYearDraft({ start: e.target.value, end: yearDraft?.end ?? year.end })} /></label>
+          <label className="field"><span>Last day of classes (end of classes)</span><input type="date" className="input" value={yearDraft?.end ?? year.end} onChange={(e) => setYearDraft({ start: yearDraft?.start ?? year.start, end: e.target.value })} /></label>
+          <button className="btn btn-ink align-end" disabled={!yearDraft || yearDraft.end <= yearDraft.start} onClick={async () => { await repo.updateSchoolYear(yearDraft!); setYearDraft(null); flash('School year dates saved'); }}>Save dates</button>
+        </div>
+        <p className="muted small">DepEd SY 2026-2027: classes June 8, 2026 to April 8, 2027. Days outside these dates show as no class, and no attendance is taken.</p>
+      </Card>
       <Card>
         <p className="hint">Click any day to change it. To mark several days at once, set an end date in the editor.</p>
         <CalendarLegend />

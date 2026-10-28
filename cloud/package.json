@@ -1,0 +1,14 @@
+{
+  "name": "doorbell-cloud",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "tsx seed.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

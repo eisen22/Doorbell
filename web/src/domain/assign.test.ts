@@ -34,7 +34,7 @@ describe('auto-assign', () => {
 
 describe('DepEd SY 2026-2027 calendar', () => {
   const year = { start: '2026-06-08', end: '2027-04-08' };
-  const sched = { classDays: [1, 2, 3, 4, 5], startTime: '08:00', scanWindowMins: 30, lateCutoffMins: 15, autoFinalizeMins: 45 };
+  const sched = { classDays: [1, 2, 3, 4, 5], startTime: '08:00', endTime: '11:30', scanWindowMins: 30, lateCutoffMins: 15, autoFinalizeMins: 45 };
   it('classifies days', () => {
     expect(dayKind('2026-06-12', year, DEPED_SY_2026_2027)).toBe('holiday');
     expect(dayKind('2026-09-01', year, DEPED_SY_2026_2027)).toBe('holiday'); // Baguio Charter Day

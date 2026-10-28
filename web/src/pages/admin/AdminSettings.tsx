@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Save, Send } from 'lucide-react';
-import { normalizePhMobile, renderTemplate, smsSegments, isGsmPlain } from '../../domain/rules';
+import { describeStreak, normalizePhMobile, renderTemplate, smsSegments, isGsmPlain } from '../../domain/rules';
 import type { Lang, SchoolSettings, SmsTemplates } from '../../domain/types';
 import { useLive, useRepo } from '../../lib/repo';
 import { Card, Skeleton, Toast } from '../../components/ui';
@@ -14,7 +14,7 @@ export function AdminSettings() {
   useEffect(() => { if (data && !s) setS(structuredClone(data)); }, [data, s]);
   if (!s) return <div className="page"><Skeleton h={400} /></div>;
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
-  const vars = { child: 'Juan', time: '7:42 AM', school: s.schoolName, contact: s.contactNumber };
+  const varsFor = (lang: Lang) => ({ child: 'Juan', time: '7:42 AM', school: s.schoolName, contact: s.contactNumber, streak: describeStreak({ count: 3, absent: 2, late: 1 }, lang) });
   const setTpl = (lang: Lang, k: keyof SmsTemplates, v: string) => setS({ ...s, templates: { ...s.templates, [lang]: { ...s.templates[lang], [k]: v } } });
 
   return (
@@ -42,17 +42,17 @@ export function AdminSettings() {
               flash('Test SMS sent (see the SMS Simulator)');
             }}><Send size={16} /> Send test</button>
           </div>
-          <p className="muted small">SMS driver: <b>Mock</b> (nothing is really sent). The real provider is connected in the cloud step.</p>
+          <p className="muted small">{repo.mode === 'demo' ? <>Demo mode: texts are simulated.</> : <>Texts are recorded in the SMS Messages page. A real SMS provider (e.g. Semaphore) plugs in with the SMS sender service.</>}</p>
         </Card>
       </div>
       <Card title="Message templates">
-        <p className="muted small">Variables: {'{child}'} first name, {'{time}'}, {'{school}'}, {'{contact}'}. Keep each under 160 plain characters (no emoji or curly quotes) so it costs one SMS.</p>
+        <p className="muted small">Variables: {'{child}'} first name, {'{time}'}, {'{school}'}, {'{contact}'}, and in the 3-day alert {'{streak}'}, which becomes the exact pattern, e.g. "absent for 3 school days in a row" or "absent 2 days and late 1 day". Keep each under 160 plain characters (no emoji or curly quotes) so it costs one SMS.</p>
         <div className="templates">
           {(['en', 'fil'] as const).map((lang) => (
             <div key={lang}>
               <h3>{lang === 'en' ? 'English' : 'Filipino'}</h3>
               {(['arrival', 'late', 'streak'] as const).map((k) => {
-                const preview = renderTemplate(s.templates[lang][k], vars);
+                const preview = renderTemplate(s.templates[lang][k], varsFor(lang));
                 const plain = isGsmPlain(preview);
                 return (
                   <label key={k} className="tpl">

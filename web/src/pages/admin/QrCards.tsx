@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import { Printer, Info } from 'lucide-react';
+import { Printer, Info, Search } from 'lucide-react';
 import type { StudentRow } from '../../data/repository';
 import { useLive, useRepo, textOn } from '../../lib/repo';
-import { Card, Empty, Skeleton } from '../../components/ui';
-import { Logo } from '../../components/ui';
+import { Card, Empty, Logo, Skeleton } from '../../components/ui';
 
 type Layout = 'card' | 'sticker';
 type Format = 'qr' | 'code128';
@@ -16,18 +15,51 @@ export function QrCards() {
   const [sectionId, setSectionId] = useState<string | null>(null);
   const [layout, setLayout] = useState<Layout>('card');
   const [format, setFormat] = useState<Format>('qr');
+  const [printId, setPrintId] = useState<string | null>(null);
+  const [find, setFind] = useState('');
   const { data } = useLive(async (r) => ({ rows: await r.listStudentRows(), sections: (await r.listSections()).filter((s) => !s.archived), settings: await r.getSettings() }));
+
+  // Print just one card: mark it, print, then go back to normal.
+  useEffect(() => {
+    if (!printId) return;
+    const done = () => setPrintId(null);
+    window.addEventListener('afterprint', done, { once: true });
+    const t = setTimeout(() => window.print(), 300); // let the code image render first
+    return () => { clearTimeout(t); window.removeEventListener('afterprint', done); };
+  }, [printId]);
+
   if (!data) return <div className="page"><Skeleton h={400} /></div>;
   const sec = data.sections.find((s) => s.id === (sectionId ?? data.sections[0]?.id));
-  const rows = data.rows.filter((r) => r.enrollment?.status === 'active' && r.enrollment.sectionId === sec?.id);
+  const enrolled = data.rows.filter((r) => r.enrollment?.status === 'active');
+  const rows = enrolled.filter((r) => r.enrollment!.sectionId === sec?.id);
+  const matches = find.trim().length >= 2 ? enrolled.filter((r) => `${r.student.firstName} ${r.student.lastName}`.toLowerCase().includes(find.toLowerCase())).slice(0, 6) : [];
+
+  const printOne = async (r: StudentRow) => {
+    if (r.enrollment && r.enrollment.sectionId !== sec?.id) setSectionId(r.enrollment.sectionId);
+    await repo.logAudit('cards.print_one', `${r.student.firstName} ${r.student.lastName}`, layout);
+    setFind('');
+    setPrintId(r.student.id);
+  };
 
   return (
     <div className="page">
       <div className="page-head no-print">
-        <div><p className="eyebrow">Codes are created automatically for every student</p><h1>ID Cards</h1></div>
-        <button className="btn btn-ink" onClick={async () => { await repo.logAudit('cards.print', sec?.name ?? '', `${rows.length} ${layout}s`); window.print(); }} disabled={!rows.length}><Printer size={17} /> Print {rows.length}</button>
+        <div><p className="eyebrow">A code is created automatically for every student</p><h1>ID Cards</h1></div>
+        <button className="btn btn-ink" onClick={async () => { await repo.logAudit('cards.print', sec?.name ?? '', `${rows.length} ${layout}s`); window.print(); }} disabled={!rows.length}><Printer size={17} /> Print all {rows.length}</button>
       </div>
       <Card className="no-print">
+        <div className="find-one">
+          <label className="field"><span>Print one student's card (new student, lost or damaged card)</span>
+            <div className="search-box"><Search size={16} /><input className="input" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Type a name" /></div>
+          </label>
+          {matches.length > 0 && (
+            <ul className="find-results">
+              {matches.map((r) => (
+                <li key={r.student.id}><button onClick={() => printOne(r)}><strong>{r.student.lastName}, {r.student.firstName}</strong><span className="muted small">{r.section?.name}</span><span className="link"><Printer size={14} /> Print</span></button></li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div className="chips">
           {data.sections.map((s) => (
             <button key={s.id} className={`fchip ${s.id === sec?.id ? 'fchip-on' : ''}`} onClick={() => setSectionId(s.id)}><span className="sec-dot sm" style={{ background: s.color }} />{s.name}</button>
@@ -47,11 +79,16 @@ export function QrCards() {
             </div>
           </div>
         </div>
-        <p className="muted small note-row"><Info size={14} /> Print at 100% scale (not "fit to page"), black on white, and use matte lamination. Lost card? Use "Reissue" on the Students page, then print it here.</p>
+        <p className="muted small note-row"><Info size={14} /> Print at 100% scale (not "fit to page"), black on white, matte lamination. A lost card: press "Reissue" on the Students page first, then print the new one here.</p>
       </Card>
       {rows.length === 0 ? <Card><Empty title="No students in this section" /></Card> : (
-        <div className={`print-sheet sheet-${layout}`}>
-          {rows.map((r) => <IdCard key={r.student.id} row={r} layout={layout} format={format} color={sec!.color} school={data.settings.schoolName} />)}
+        <div className={`print-sheet sheet-${layout} ${printId ? 'print-single' : ''}`}>
+          {rows.map((r) => (
+            <div key={r.student.id} className={`card-slot ${printId === r.student.id ? 'print-target' : ''}`}>
+              <IdCard row={r} layout={layout} format={format} color={sec!.color} school={data.settings.schoolName} />
+              <button className="btn btn-sm no-print slot-print" onClick={() => printOne(r)}><Printer size={14} /> Print this card</button>
+            </div>
+          ))}
         </div>
       )}
     </div>

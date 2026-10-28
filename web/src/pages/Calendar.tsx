@@ -18,8 +18,8 @@ export function CalendarPage() {
     counts[k] = (counts[k] ?? 0) + 1;
     if (DAY_KIND_META[k].isClass) { total++; if (d <= today.date) held++; }
   }
-  const upcoming = calendar.filter((c) => c.date > today.date && c.type !== 'event').slice(0, 8);
-  const events = calendar.filter((c) => c.date >= today.date && c.type === 'event').slice(0, 6);
+  const upcoming = calendar.filter((c) => c.date > today.date && !['event', 'exam'].includes(c.type)).slice(0, 8);
+  const events = calendar.filter((c) => c.date >= today.date && (c.type === 'event' || c.type === 'exam')).slice(0, 8);
 
   return (
     <div className="page">
@@ -46,10 +46,10 @@ export function CalendarPage() {
             ))}
           </ul>
         </Card>
-        <Card title="School events (classes continue)">
+        <Card title="Exams and school events (classes continue)">
           <ul className="cal-list">
             {events.map((c) => (
-              <li key={c.date}><span className="swatch k-event" /><time>{format(parseISO(c.date), 'EEE, MMM d')}</time><span>{c.label}</span></li>
+              <li key={c.date}><span className={`swatch k-${c.type}`} /><time>{format(parseISO(c.date), 'EEE, MMM d')}</time><span>{c.label}</span></li>
             ))}
           </ul>
         </Card>

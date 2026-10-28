@@ -1,5 +1,9 @@
 // Pure attendance and SMS rules. No React, no Firebase: shared by web, worker and scanner.
-import type { AttendanceStatus, CalendarDay, ISODate, SectionSchedule } from './types';
+import type { AttendanceStatus, CalendarDay, ISODate, Lang, SectionSchedule, StreakInfo } from './types';
+
+/** Calendar entries as a list or a date-keyed map (the map is faster for long histories). */
+export type CalendarLike = CalendarDay[] | Map<ISODate, CalendarDay>;
+const entryOf = (calendar: CalendarLike, date: ISODate) => (calendar instanceof Map ? calendar.get(date) : calendar.find((c) => c.date === date));
 
 /* ---------- dates (string based, timezone safe) ---------- */
 
@@ -58,17 +62,17 @@ export function manilaTime(now: Date = new Date()): string {
 
 /* ---------- school days ---------- */
 
-export function isSchoolDay(date: ISODate, schedule: SectionSchedule, calendar: CalendarDay[]): boolean {
-  const entry = calendar.find((c) => c.date === date);
+export function isSchoolDay(date: ISODate, schedule: SectionSchedule, calendar: CalendarLike): boolean {
+  const entry = entryOf(calendar, date);
   if (entry?.type === 'makeup') return true;
   if (entry && (entry.type === 'holiday' || entry.type === 'suspension' || entry.type === 'break')) return false;
-  // halfday and event are still class days
+  // halfday, event and exam are still class days
   return schedule.classDays.includes(isoWeekday(date));
 }
 
 /** The last `count` school days ending at (and including) `date`, newest first. */
 export function recentSchoolDays(
-  date: ISODate, count: number, schedule: SectionSchedule, calendar: CalendarDay[], maxLookback = 60,
+  date: ISODate, count: number, schedule: SectionSchedule, calendar: CalendarLike, maxLookback = 60,
 ): ISODate[] {
   const out: ISODate[] = [];
   let d = date;
@@ -130,19 +134,50 @@ export function computeStreak(
   date: ISODate,
   statusByDate: Record<ISODate, AttendanceStatus | undefined>,
   schedule: SectionSchedule,
-  calendar: CalendarDay[],
+  calendar: CalendarLike,
   lookback = 30,
 ): number {
+  return streakInfo(date, statusByDate, schedule, calendar, lookback).count;
+}
+
+/** Same as computeStreak, with the absent/late breakdown and the dates involved. */
+export function streakInfo(
+  date: ISODate,
+  statusByDate: Record<ISODate, AttendanceStatus | undefined>,
+  schedule: SectionSchedule,
+  calendar: CalendarLike,
+  lookback = 30,
+): StreakInfo {
   const days = recentSchoolDays(date, lookback, schedule, calendar, lookback * 3);
-  let streak = 0;
+  const info: StreakInfo = { count: 0, absent: 0, late: 0, dates: [] };
   for (const d of days) {
     const s = statusByDate[d];
     if (s === undefined) break;
     if (s === 'excused') continue;
     if (s === 'present') break;
-    streak++;
+    info.count++;
+    info.dates.push(d);
+    if (s === 'absent') info.absent++; else info.late++;
   }
-  return streak;
+  return info;
+}
+
+/**
+ * Plain wording for alerts and SMS, never just "late or absent":
+ * "absent for 3 school days in a row", "late for 3 school days in a row",
+ * "absent 2 days and late 1 day, 3 school days in a row".
+ */
+export function describeStreak(s: Pick<StreakInfo, 'count' | 'absent' | 'late'>, lang: Lang = 'en'): string {
+  const n = s.count;
+  const day = (k: number) => (k === 1 ? 'day' : 'days');
+  if (lang === 'fil') {
+    if (s.late === 0) return `absent nang ${n} araw na magkakasunod`;
+    if (s.absent === 0) return `late nang ${n} araw na magkakasunod`;
+    return `absent nang ${s.absent} araw at late nang ${s.late} araw, ${n} araw na magkakasunod`;
+  }
+  if (s.late === 0) return `absent for ${n} school days in a row`;
+  if (s.absent === 0) return `late for ${n} school days in a row`;
+  return `absent ${s.absent} ${day(s.absent)} and late ${s.late} ${day(s.late)}, ${n} school days in a row`;
 }
 
 /** Alert exactly when the streak reaches the threshold, so each streak alerts once. */

@@ -111,6 +111,18 @@ export function Modal({ title, onClose, children, footer }: { title: string; onC
   );
 }
 
+/** Short streak label, always specific: "Absent 3 days", "Late 3 days", "Absent 2 · Late 1". */
+export function streakShort(s: { count: number; absent: number; late: number }): string {
+  if (s.late === 0) return `Absent ${s.count} day${s.count === 1 ? '' : 's'}`;
+  if (s.absent === 0) return `Late ${s.count} day${s.count === 1 ? '' : 's'}`;
+  return `Absent ${s.absent} · Late ${s.late}`;
+}
+
+export function StreakChip({ s, threshold = 3 }: { s: { count: number; absent: number; late: number }; threshold?: number }) {
+  if (s.count < 2) return null;
+  return <span className={`streak ${s.count >= threshold ? 'streak-hot' : ''}`}>{streakShort(s)}</span>;
+}
+
 export function Toast({ message, tone = 'ok' }: { message: string | null; tone?: 'ok' | 'warn' | 'bad' }) {
   if (!message) return null;
   return <div className={`toast toast-${tone}`} role="status">{message}</div>;

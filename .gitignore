@@ -3,3 +3,4 @@ dist
 .env
 *.local
 serviceAccount*.json
+cloud/*firebase-adminsdk*.json
