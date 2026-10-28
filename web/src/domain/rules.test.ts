@@ -80,10 +80,10 @@ describe('sms helpers', () => {
     expect(normalizePhMobile('12345')).toBeNull();
   });
   it('renders templates and counts segments', () => {
-    const msg = renderTemplate('Safe Arrival: {child} arrived at {time}. - {school}', {
+    const msg = renderTemplate('Doorbell: {child} arrived at {time}. - {school}', {
       child: 'Juan', time: '7:42 AM', school: 'Sunnyside Kinder',
     });
-    expect(msg).toBe('Safe Arrival: Juan arrived at 7:42 AM. - Sunnyside Kinder');
+    expect(msg).toBe('Doorbell: Juan arrived at 7:42 AM. - Sunnyside Kinder');
     expect(smsSegments(msg)).toBe(1);
     expect(smsSegments('Curly \u2019quote')).toBe(1); // unicode -> 67 chars per segment
     expect(smsSegments('x'.repeat(161))).toBe(2);

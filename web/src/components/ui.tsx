@@ -7,8 +7,10 @@ export function Logo({ size = 34 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden="true">
       <rect x="2" y="2" width="36" height="36" rx="11" fill="#D8F5A2" />
-      <path d="M10 21 L20 12 L30 21" fill="none" stroke="#111" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M15 25.5 L19 29 L26 22" fill="none" stroke="#111" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      {/* bell */}
+      <path d="M20 9.5c-4.6 0-7.6 3.3-7.6 7.8v4.9l-2.3 3.6c-.4.6 0 1.4.8 1.4h18.2c.8 0 1.2-.8.8-1.4l-2.3-3.6v-4.9c0-4.5-3-7.8-7.6-7.8z" fill="#111" />
+      <path d="M16.6 29.4a3.5 3.5 0 0 0 6.8 0" fill="none" stroke="#111" strokeWidth="2.6" strokeLinecap="round" />
+      <circle cx="28.6" cy="11.4" r="3.6" fill="#FFB65C" stroke="#D8F5A2" strokeWidth="1.6" />
     </svg>
   );
 }

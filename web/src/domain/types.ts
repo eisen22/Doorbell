@@ -39,6 +39,8 @@ export interface Teacher {
   name: string;
   email: string;
   role: Role;
+  active?: boolean;
+  mobile?: string;
 }
 
 export interface Student {
@@ -93,10 +95,17 @@ export interface DayConfirmation {
   auto: boolean;
 }
 
+/**
+ * Calendar entries override the normal weekday rule.
+ * No class: holiday, suspension, break.  Class day: halfday, event, makeup.
+ */
+export type CalendarDayType = 'holiday' | 'suspension' | 'break' | 'halfday' | 'event' | 'makeup';
+
 export interface CalendarDay {
   date: ISODate;
-  type: 'holiday' | 'suspension' | 'makeup';
+  type: CalendarDayType;
   label: string;
+  scope?: 'national' | 'local'; // for holidays
 }
 
 export type SmsKind = 'arrival' | 'late' | 'streak' | 'welcome' | 'test';

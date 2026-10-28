@@ -61,7 +61,8 @@ export function manilaTime(now: Date = new Date()): string {
 export function isSchoolDay(date: ISODate, schedule: SectionSchedule, calendar: CalendarDay[]): boolean {
   const entry = calendar.find((c) => c.date === date);
   if (entry?.type === 'makeup') return true;
-  if (entry && (entry.type === 'holiday' || entry.type === 'suspension')) return false;
+  if (entry && (entry.type === 'holiday' || entry.type === 'suspension' || entry.type === 'break')) return false;
+  // halfday and event are still class days
   return schedule.classDays.includes(isoWeekday(date));
 }
 

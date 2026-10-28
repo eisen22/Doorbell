@@ -1,8 +1,8 @@
 // THE CONTRACT. The UI only talks to this interface.
 // Adapters: mock (now) and firestore (Cloud step). Change this file only on purpose.
 import type {
-  AppNotification, AttendanceRecord, AttendanceStatus, AuditEntry, CalendarDay, DayConfirmation,
-  ISODate, Role, RosterRow, SchoolSettings, SchoolYear, Section, SmsMessage, Student,
+  AppNotification, AttendanceRecord, AttendanceStatus, AuditEntry, CalendarDay, DayConfirmation, Enrollment,
+  Guardian, ISODate, Lang, Role, RosterRow, SchoolSettings, SchoolYear, Section, SmsMessage, Student, Teacher,
 } from '../domain/types';
 
 export interface Session {
@@ -21,6 +21,45 @@ export type ScanResult =
   | { kind: 'wrong_section'; student: Student }
   | { kind: 'not_school_day' }
   | { kind: 'locked' };
+
+export interface TeacherInput {
+  id?: string;
+  name: string;
+  email: string;
+  mobile?: string;
+}
+
+export interface SectionInput {
+  id?: string;
+  name: string;
+  color: string;
+  capacity: number;
+  teacherId: string | null;
+  schedule: Section['schedule'];
+}
+
+export interface StudentInput {
+  id?: string;
+  lrn?: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  birthdate: ISODate;
+  sex: 'M' | 'F';
+  guardianName: string;
+  guardianMobile: string; // normalized +639XXXXXXXXX
+  relationship: string;
+  smsConsent: boolean;
+  preferredLanguage: Lang;
+  sectionId?: string | null;
+}
+
+export interface StudentRow {
+  student: Student;
+  guardian?: Guardian;
+  enrollment?: Enrollment;
+  section?: Section;
+}
 
 export interface SetStatusInput {
   sectionId: string;
@@ -58,6 +97,31 @@ export interface Repository {
 
   /** Demo helper: scan a random student who has not arrived yet. */
   simulateScan(sectionId: string): Promise<ScanResult>;
+
+  /* ---------- admin ---------- */
+  /** Demo only: switch the signed-in user between the teacher and admin accounts. */
+  setRole(role: 'teacher' | 'admin'): Promise<Session>;
+
+  saveCalendarDays(days: CalendarDay[]): Promise<void>;
+  removeCalendarDays(dates: ISODate[]): Promise<void>;
+  resetCalendar(days: CalendarDay[]): Promise<void>;
+  declareSuspension(date: ISODate, label: string): Promise<void>;
+
+  listTeachers(): Promise<Teacher[]>;
+  saveTeacher(input: TeacherInput): Promise<Teacher>;
+  setTeacherActive(id: string, active: boolean): Promise<void>;
+
+  saveSection(input: SectionInput): Promise<Section>;
+  archiveSection(id: string, archived: boolean): Promise<void>;
+
+  listStudentRows(): Promise<StudentRow[]>;
+  saveStudent(input: StudentInput): Promise<Student>;
+  importStudents(inputs: StudentInput[]): Promise<{ created: number; linkedSiblings: number }>;
+  assignStudents(assignments: Record<string, string | null>, label: string): Promise<void>;
+  undoLastAssign(): Promise<string | null>;
+  setEnrollmentStatus(studentId: string, status: Enrollment['status'], effectiveDate: ISODate): Promise<void>;
+  reissueQr(studentId: string): Promise<Student>;
+  sendTestSms(to: string): Promise<SmsMessage>;
 
   /** Called whenever data changes, so screens refresh live. Returns an unsubscribe function. */
   subscribe(listener: () => void): () => void;

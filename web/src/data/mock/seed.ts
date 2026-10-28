@@ -1,4 +1,5 @@
 // Fake but realistic Filipino demo data. Never put real children's data here.
+import { DEPED_SY_2026_2027 } from '../../domain/calendar';
 import type {
   CalendarDay, Enrollment, Guardian, SchoolSettings, SchoolYear, Section, SectionSchedule, Student, Teacher,
 } from '../../domain/types';
@@ -17,14 +18,17 @@ export const schedule: SectionSchedule = {
 };
 
 export const schoolYear: SchoolYear = {
-  id: 'sy-2026', name: 'SY 2026-2027', start: '2026-06-15', end: '2027-04-09', isActive: true,
+  id: 'sy-2026', name: 'SY 2026-2027', start: '2026-06-08', end: '2027-04-08', isActive: true,
 };
 
 export const teachers: Teacher[] = [
-  { id: 't-maria', name: 'Maria Santos', email: 'maria.santos@sunnyside.edu.ph', role: 'teacher' },
-  { id: 't-jose', name: 'Jose Ramirez', email: 'jose.ramirez@sunnyside.edu.ph', role: 'teacher' },
-  { id: 't-ana', name: 'Ana Villanueva', email: 'ana.villanueva@sunnyside.edu.ph', role: 'teacher' },
+  { id: 't-maria', name: 'Maria Santos', email: 'maria.santos@sunnyside.edu.ph', role: 'teacher', active: true },
+  { id: 't-jose', name: 'Jose Ramirez', email: 'jose.ramirez@sunnyside.edu.ph', role: 'teacher', active: true },
+  { id: 't-ana', name: 'Ana Villanueva', email: 'ana.villanueva@sunnyside.edu.ph', role: 'teacher', active: true },
+  { id: 't-liza', name: 'Liza Aquino', email: 'liza.aquino@sunnyside.edu.ph', role: 'teacher', active: true },
 ];
+
+export const admin = { userId: 'a-rosario', name: 'Rosario Dizon', role: 'admin' as const, sectionId: null };
 
 export const sections: Section[] = [
   { id: 'sec-apple', schoolYearId: 'sy-2026', name: 'Kindergarten I - Apple', gradeLevel: 'K', color: '#FFD9A8', schedule, capacity: 25, teacherId: 't-maria', archived: false },
@@ -33,12 +37,9 @@ export const sections: Section[] = [
 ];
 
 export const calendar: CalendarDay[] = [
-  { date: '2026-08-21', type: 'holiday', label: 'Ninoy Aquino Day' },
-  { date: '2026-08-31', type: 'holiday', label: "National Heroes' Day" },
-  { date: '2026-11-02', type: 'holiday', label: "All Souls' Day" },
-  { date: '2026-11-30', type: 'holiday', label: 'Bonifacio Day' },
-  { date: '2026-12-08', type: 'holiday', label: 'Immaculate Conception' },
-];
+  ...DEPED_SY_2026_2027,
+  { date: '2026-07-23', type: 'suspension' as const, label: 'Class suspension: heavy rain (demo entry)' },
+].sort((a, b) => a.date.localeCompare(b.date));
 
 export const settings: SchoolSettings = {
   schoolName: 'Sunnyside Kinder',
@@ -47,13 +48,13 @@ export const settings: SchoolSettings = {
   streakDays: 3,
   templates: {
     en: {
-      arrival: 'Safe Arrival: {child} arrived at school at {time}. - {school}',
-      late: 'Safe Arrival: {child} arrived late at {time}. - {school}',
+      arrival: 'Doorbell: {child} arrived at school at {time}. - {school}',
+      late: 'Doorbell: {child} arrived late at {time}. - {school}',
       streak: '{school}: {child} has been late or absent for 3 school days in a row. We hope all is well. Please call {contact}.',
     },
     fil: {
-      arrival: 'Safe Arrival: Nakarating na si {child} sa paaralan ng {time}. - {school}',
-      late: 'Safe Arrival: Nahuli si {child} ng dating, {time}. - {school}',
+      arrival: 'Doorbell: Nakarating na si {child} sa paaralan ng {time}. - {school}',
+      late: 'Doorbell: Nahuli si {child} ng dating, {time}. - {school}',
       streak: '{school}: Si {child} ay late o absent na ng 3 araw na magkakasunod. Sana ay maayos siya. Pakitawagan ang {contact}.',
     },
   },
@@ -89,7 +90,7 @@ export function seedPeople(): SeedPeople {
         id, firstName: sex === 'M' ? pick(FIRST_M) : pick(FIRST_F), middleName: pick(MIDDLE), lastName,
         birthdate: `2021-0${1 + Math.floor(r() * 9)}-1${Math.floor(r() * 9)}`, sex, qrToken: `SA-${token}`, qrStatus: 'active',
       });
-      enrollments.push({ id: `enr-${id}`, studentId: id, sectionId: sec.id, schoolYearId: 'sy-2026', status: 'active', effectiveDate: '2026-06-15' });
+      enrollments.push({ id: `enr-${id}`, studentId: id, sectionId: sec.id, schoolYearId: 'sy-2026', status: 'active', effectiveDate: '2026-06-08' });
 
       // Every 7th child shares a guardian with the previous child (siblings).
       if (n % 7 === 0 && guardians.length > 0) {
@@ -108,6 +109,21 @@ export function seedPeople(): SeedPeople {
         studentIds: [id],
       });
     }
+  }
+  // Newly enrolled children not yet placed in a section (for the auto-assign demo).
+  for (let i = 0; i < 9; i++) {
+    n++;
+    const sex = r() < 0.5 ? 'M' : 'F';
+    const lastName = pick(LAST);
+    const id = `stu-${String(n).padStart(3, '0')}`;
+    students.push({
+      id, firstName: sex === 'M' ? pick(FIRST_M) : pick(FIRST_F), middleName: pick(MIDDLE), lastName,
+      birthdate: `2021-0${1 + Math.floor(r() * 9)}-2${Math.floor(r() * 8)}`, sex, qrToken: `SA-NEW${String(n).padStart(6, '0')}`, qrStatus: 'active',
+    });
+    guardians.push({
+      id: `g-${id}`, name: `${pick(FIRST_F)} ${lastName}`, mobile: `+639${String(180000000 + Math.floor(r() * 9999999)).slice(0, 9)}`,
+      relationship: 'Mother', smsConsent: true, preferredLanguage: 'en', numberStatus: 'unverified', studentIds: [id],
+    });
   }
   return { students, guardians, enrollments };
 }

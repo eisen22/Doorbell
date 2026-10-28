@@ -25,8 +25,13 @@ export function useLive<T>(load: (repo: Repository) => Promise<T>, deps: unknown
   loadRef.current = load;
 
   const reload = useCallback(async () => {
-    const value = await loadRef.current(repo);
-    setData(value);
+    try {
+      const value = await loadRef.current(repo);
+      setData(value);
+    } catch (e) {
+      // Usually a page for the other role while the portal is switching; the shell redirects.
+      console.debug('useLive load skipped:', (e as Error).message);
+    }
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repo, ...deps]);

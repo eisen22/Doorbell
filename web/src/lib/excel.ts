@@ -23,7 +23,7 @@ export async function exportAttendanceXlsx(input: ExportInput): Promise<string> 
   const mod = (await import('exceljs')) as unknown as { Workbook?: new () => Workbook; default?: { Workbook: new () => Workbook } };
   const WorkbookCtor = mod.Workbook ?? mod.default!.Workbook;
   const wb = new WorkbookCtor();
-  wb.creator = 'Safe Arrival';
+  wb.creator = 'Doorbell';
   wb.created = new Date();
 
   const days: ISODate[] = [];

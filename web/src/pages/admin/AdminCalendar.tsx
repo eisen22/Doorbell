@@ -1,0 +1,152 @@
+import { useState } from 'react';
+import { format, parseISO } from 'date-fns';
+import { CloudRain, RotateCcw, Pencil, Trash2 } from 'lucide-react';
+import { DAY_KIND_META, DEPED_SY_2026_2027, countClassDays, dayKind, eachDate } from '../../domain/calendar';
+import { isoWeekday } from '../../domain/rules';
+import type { CalendarDay, CalendarDayType, ISODate } from '../../domain/types';
+import { useLive, useRepo } from '../../lib/repo';
+import { Card, Modal, Skeleton, Toast } from '../../components/ui';
+import { CalendarLegend, YearCalendar } from '../../components/YearCalendar';
+
+type EditType = CalendarDayType | 'class';
+
+const TYPE_OPTIONS: { value: EditType; hint: string }[] = [
+  { value: 'class', hint: 'Normal class day (removes any special entry)' },
+  { value: 'event', hint: 'Classes continue, with a school event' },
+  { value: 'halfday', hint: 'Classes for half the day' },
+  { value: 'holiday', hint: 'No classes, regular or special holiday' },
+  { value: 'suspension', hint: 'No classes, e.g. weather or emergency' },
+  { value: 'break', hint: 'No classes, e.g. wellness or year-end break' },
+  { value: 'makeup', hint: 'Class on a day that is normally off, e.g. Saturday' },
+];
+
+interface Draft { from: ISODate; to: ISODate; type: EditType; label: string; scope: 'national' | 'local'; weekdaysOnly: boolean }
+
+export function AdminCalendar() {
+  const repo = useRepo();
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [suspend, setSuspend] = useState<{ date: ISODate; label: string } | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const { data } = useLive(async (r) => ({ year: await r.getSchoolYear(), calendar: await r.getCalendar(), today: await r.getToday() }));
+  if (!data) return <div className="page"><Skeleton h={500} /></div>;
+  const { year, calendar, today } = data;
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
+
+  const open = (date: ISODate) => {
+    const entry = calendar.find((c) => c.date === date);
+    setDraft({
+      from: date, to: date, type: entry?.type ?? 'class', label: entry?.label ?? '',
+      scope: entry?.scope ?? 'national', weekdaysOnly: true,
+    });
+  };
+
+  const save = async () => {
+    if (!draft) return;
+    const dates = eachDate(draft.from, draft.to < draft.from ? draft.from : draft.to)
+      .filter((d) => !draft.weekdaysOnly || draft.type === 'makeup' || draft.from === draft.to || isoWeekday(d) <= 5);
+    if (draft.type === 'class') {
+      await repo.removeCalendarDays(dates);
+    } else {
+      const label = draft.label.trim() || DAY_KIND_META[draft.type].label;
+      await repo.saveCalendarDays(dates.map((date): CalendarDay => ({
+        date, type: draft.type as CalendarDayType, label, ...(draft.type === 'holiday' ? { scope: draft.scope } : {}),
+      })));
+    }
+    flash(`${dates.length} day${dates.length > 1 ? 's' : ''} updated. Attendance and streaks follow the new calendar.`);
+    setDraft(null);
+  };
+
+  const upcoming = calendar.filter((c) => c.date >= today.date && c.type !== 'event').slice(0, 10);
+
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <p className="eyebrow">{year.name} · {countClassDays(year, calendar)} class days</p>
+          <h1>School Calendar</h1>
+        </div>
+        <div className="head-actions">
+          <button className="btn" onClick={() => setResetOpen(true)}><RotateCcw size={17} /> Reset to DepEd template</button>
+          <button className="btn btn-danger" onClick={() => setSuspend({ date: today.date, label: 'Class suspension: weather' })}><CloudRain size={17} /> Declare suspension</button>
+        </div>
+      </div>
+      <Card>
+        <p className="hint">Click any day to change it. To mark several days at once, set an end date in the editor.</p>
+        <CalendarLegend />
+        <YearCalendar year={year} calendar={calendar} today={today.date} selection={draft ? { from: draft.from, to: draft.to } : null} onDayClick={open} />
+      </Card>
+      <Card title="Upcoming no-class days and changes">
+        <ul className="cal-list editable">
+          {upcoming.map((c) => (
+            <li key={c.date}>
+              <span className={`swatch k-${c.type} ${c.scope === 'local' ? 'is-local' : ''}`} />
+              <time>{format(parseISO(c.date), 'EEE, MMM d')}</time>
+              <span>{c.label}</span>
+              <button className="icon-btn sm" onClick={() => open(c.date)} aria-label={`Edit ${c.date}`}><Pencil size={15} /></button>
+              <button className="icon-btn sm" onClick={async () => { await repo.removeCalendarDays([c.date]); flash('Back to a normal day'); }} aria-label={`Clear ${c.date}`}><Trash2 size={15} /></button>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {draft && (
+        <Modal title={draft.from === draft.to ? format(parseISO(draft.from), 'EEEE, MMMM d, yyyy') : 'Edit days'} onClose={() => setDraft(null)} footer={<>
+          <button className="btn" onClick={() => setDraft(null)}>Cancel</button>
+          <button className="btn btn-ink" onClick={save}>Save</button>
+        </>}>
+          <p className="muted small">Now: {DAY_KIND_META[dayKind(draft.from, year, calendar)].label}</p>
+          <div className="type-pick" role="radiogroup" aria-label="Day type">
+            {TYPE_OPTIONS.map((o) => (
+              <label key={o.value} className={`type-opt ${draft.type === o.value ? 'on' : ''}`}>
+                <input type="radio" name="type" checked={draft.type === o.value} onChange={() => setDraft({ ...draft, type: o.value })} />
+                <span className={`swatch k-${o.value}`} />
+                <span><b>{DAY_KIND_META[o.value].label}</b><small>{o.hint}</small></span>
+              </label>
+            ))}
+          </div>
+          {draft.type !== 'class' && (
+            <label className="field"><span>Label shown to teachers</span>
+              <input className="input" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder={DAY_KIND_META[draft.type].label} />
+            </label>
+          )}
+          {draft.type === 'holiday' && (
+            <div className="chips">
+              {(['national', 'local'] as const).map((s) => (
+                <button key={s} className={`fchip ${draft.scope === s ? 'fchip-on' : ''}`} onClick={() => setDraft({ ...draft, scope: s })}>{s === 'national' ? 'National' : 'Local (Baguio)'}</button>
+              ))}
+            </div>
+          )}
+          <div className="form-row">
+            <label className="field"><span>From</span><input type="date" className="input" value={draft.from} min={year.start.slice(0, 7) + '-01'} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
+            <label className="field"><span>To (optional)</span><input type="date" className="input" value={draft.to} min={draft.from} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
+          </div>
+          {draft.to > draft.from && draft.type !== 'makeup' && (
+            <label className="check"><input type="checkbox" checked={draft.weekdaysOnly} onChange={(e) => setDraft({ ...draft, weekdaysOnly: e.target.checked })} /> Skip Saturdays and Sundays</label>
+          )}
+        </Modal>
+      )}
+
+      {suspend && (
+        <Modal title="Declare a class suspension" onClose={() => setSuspend(null)} footer={<>
+          <button className="btn" onClick={() => setSuspend(null)}>Cancel</button>
+          <button className="btn btn-danger" onClick={async () => { await repo.declareSuspension(suspend.date, suspend.label); setSuspend(null); flash('Suspension saved. No absences or streak SMS for that day.'); }}>Declare suspension</button>
+        </>}>
+          <p>On a suspended day, children are not marked absent, it does not count toward 3-day streaks, and no absence SMS is sent.</p>
+          <label className="field"><span>Date</span><input type="date" className="input" value={suspend.date} onChange={(e) => setSuspend({ ...suspend, date: e.target.value })} /></label>
+          <label className="field"><span>Reason</span><input className="input" value={suspend.label} onChange={(e) => setSuspend({ ...suspend, label: e.target.value })} /></label>
+        </Modal>
+      )}
+
+      {resetOpen && (
+        <Modal title="Reset to the DepEd template?" onClose={() => setResetOpen(false)} footer={<>
+          <button className="btn" onClick={() => setResetOpen(false)}>Cancel</button>
+          <button className="btn btn-ink" onClick={async () => { await repo.resetCalendar(DEPED_SY_2026_2027); setResetOpen(false); flash('Calendar reset to DepEd SY 2026-2027'); }}>Reset calendar</button>
+        </>}>
+          <p>This replaces every entry with DepEd Order No. 009, s. 2026 plus Baguio Charter Day. Suspensions and school events you added will be removed.</p>
+        </Modal>
+      )}
+      <Toast message={toast} />
+    </div>
+  );
+}

@@ -6,9 +6,9 @@ import {
 } from '../../domain/rules';
 import type {
   AppNotification, AttendanceRecord, AttendanceStatus, AuditEntry, CalendarDay, DayConfirmation, Enrollment,
-  Guardian, ISODate, RosterRow, SchoolSettings, Section, SmsKind, SmsMessage, Student,
+  Guardian, ISODate, RosterRow, SchoolSettings, Section, SmsKind, SmsMessage, Student, Teacher,
 } from '../../domain/types';
-import type { Repository, ScanResult, Session, SetStatusInput } from '../repository';
+import type { Repository, ScanResult, SectionInput, Session, SetStatusInput, StudentInput, StudentRow, TeacherInput } from '../repository';
 import * as seed from './seed';
 
 const key = (sectionId: string, date: ISODate, studentId: string) => `${sectionId}|${date}|${studentId}`;
@@ -320,6 +320,222 @@ export class MockRepository implements Repository {
     if (waiting.length === 0) return { kind: 'ignore' } as ScanResult;
     const pick = waiting[Math.floor(Math.random() * waiting.length)];
     return this.recordScan({ qrToken: pick.qrToken, sectionId });
+  }
+
+  /* ---------- admin ---------- */
+
+  private teachers: Teacher[] = structuredClone(seed.teachers);
+  private lastAssign: { label: string; snapshot: Enrollment[] } | null = null;
+
+  async setRole(role: 'teacher' | 'admin') {
+    this.session = role === 'admin'
+      ? { ...seed.admin }
+      : { userId: 't-maria', name: 'Maria Santos', role: 'teacher', sectionId: 'sec-apple' };
+    this.emit();
+    return this.session;
+  }
+
+  async saveCalendarDays(days: CalendarDay[]) {
+    for (const day of days) {
+      const i = this.calendar.findIndex((c) => c.date === day.date);
+      if (i >= 0) this.calendar[i] = day; else this.calendar.push(day);
+    }
+    this.calendar.sort((a, b) => a.date.localeCompare(b.date));
+    await this.logAudit('calendar.update', days.length === 1 ? days[0].date : `${days[0]?.date} to ${days[days.length - 1]?.date}`, `${days[0]?.type}: ${days[0]?.label}`);
+    this.emit();
+  }
+
+  async removeCalendarDays(dates: ISODate[]) {
+    this.calendar = this.calendar.filter((c) => !dates.includes(c.date));
+    await this.logAudit('calendar.clear', dates.length === 1 ? dates[0] : `${dates.length} days`);
+    this.emit();
+  }
+
+  async resetCalendar(days: CalendarDay[]) {
+    this.calendar = structuredClone(days);
+    await this.logAudit('calendar.reset', 'DepEd SY 2026-2027 template');
+    this.emit();
+  }
+
+  async declareSuspension(date: ISODate, label: string) {
+    await this.saveCalendarDays([{ date, type: 'suspension', label }]);
+    await this.logAudit('calendar.suspension', date, label);
+  }
+
+  async listTeachers() { return this.teachers; }
+
+  async saveTeacher(input: TeacherInput) {
+    const existing = input.id ? this.teachers.find((t) => t.id === input.id) : undefined;
+    if (this.teachers.some((t) => t.email.toLowerCase() === input.email.toLowerCase() && t.id !== input.id)) {
+      throw new Error('Another teacher already uses this email.');
+    }
+    if (existing) {
+      Object.assign(existing, { name: input.name, email: input.email, mobile: input.mobile });
+      await this.logAudit('teacher.update', existing.id, input.name);
+      this.emit();
+      return existing;
+    }
+    const t: Teacher = { id: uid('t'), name: input.name, email: input.email, mobile: input.mobile, role: 'teacher', active: true };
+    this.teachers.push(t);
+    // Cloud step: the worker creates the sign-in account with the Admin SDK and emails a temporary password.
+    await this.logAudit('teacher.create', t.id, `${t.name} (account creation stubbed until the cloud step)`);
+    this.emit();
+    return t;
+  }
+
+  async setTeacherActive(id: string, active: boolean) {
+    const t = this.teachers.find((x) => x.id === id);
+    if (!t) return;
+    t.active = active;
+    if (!active) this.sections.forEach((s) => { if (s.teacherId === id) s.teacherId = null; });
+    await this.logAudit(active ? 'teacher.activate' : 'teacher.deactivate', id, t.name);
+    this.emit();
+  }
+
+  async saveSection(input: SectionInput) {
+    if (input.teacherId) {
+      const clash = this.sections.find((s) => s.teacherId === input.teacherId && s.id !== input.id && !s.archived);
+      if (clash) throw new Error(`That teacher already handles ${clash.name}. One teacher, one section.`);
+    }
+    const existing = input.id ? this.sections.find((s) => s.id === input.id) : undefined;
+    if (existing) {
+      Object.assign(existing, { name: input.name, color: input.color, capacity: input.capacity, teacherId: input.teacherId, schedule: input.schedule });
+      await this.logAudit('section.update', existing.id, input.name);
+      this.emit();
+      return existing;
+    }
+    const s: Section = { id: uid('sec'), schoolYearId: seed.schoolYear.id, gradeLevel: 'K', archived: false, ...input };
+    this.sections.push(s);
+    await this.logAudit('section.create', s.id, s.name);
+    this.emit();
+    return s;
+  }
+
+  async archiveSection(id: string, archived: boolean) {
+    const s = this.sections.find((x) => x.id === id);
+    if (!s) return;
+    const enrolled = this.enrollments.filter((e) => e.sectionId === id && e.status === 'active').length;
+    if (archived && enrolled > 0) throw new Error(`Move the ${enrolled} students out of ${s.name} first.`);
+    s.archived = archived;
+    await this.logAudit(archived ? 'section.archive' : 'section.restore', id, s.name);
+    this.emit();
+  }
+
+  async listStudentRows(): Promise<StudentRow[]> {
+    return this.students.filter((s) => !s.id.includes('-old-')).map((student) => {
+      const enrollment = [...this.enrollments].reverse().find((e) => e.studentId === student.id);
+      return {
+        student,
+        guardian: this.guardianOf(student.id),
+        enrollment,
+        section: enrollment ? this.sections.find((s) => s.id === enrollment.sectionId) : undefined,
+      };
+    }).sort((a, b) => a.student.lastName.localeCompare(b.student.lastName) || a.student.firstName.localeCompare(b.student.firstName));
+  }
+
+  private newToken() {
+    const bytes = new Uint8Array(9);
+    crypto.getRandomValues(bytes);
+    return `SA-${Array.from(bytes, (b) => '0123456789ABCDEFGHJKMNPQRSTVWXYZ'[b % 32]).join('')}`;
+  }
+
+  private upsertStudent(input: StudentInput): { student: Student; sibling: boolean } {
+    let student = input.id ? this.students.find((s) => s.id === input.id) : undefined;
+    const fields = { lrn: input.lrn, firstName: input.firstName, middleName: input.middleName, lastName: input.lastName, birthdate: input.birthdate, sex: input.sex };
+    if (student) Object.assign(student, fields);
+    else {
+      student = { id: uid('stu'), ...fields, qrToken: this.newToken(), qrStatus: 'active' };
+      this.students.push(student);
+    }
+    // Guardians are matched by mobile number, so siblings share one guardian record.
+    let sibling = false;
+    let g = this.guardians.find((x) => x.mobile === input.guardianMobile);
+    if (g) {
+      if (!g.studentIds.includes(student.id)) { g.studentIds.push(student.id); sibling = g.studentIds.length > 1; }
+    } else {
+      this.guardians.forEach((x) => { x.studentIds = x.studentIds.filter((id) => id !== student!.id); });
+      g = {
+        id: uid('g'), name: input.guardianName, mobile: input.guardianMobile, relationship: input.relationship,
+        smsConsent: input.smsConsent, preferredLanguage: input.preferredLanguage, numberStatus: 'unverified', studentIds: [student.id],
+      };
+      this.guardians.push(g);
+    }
+    Object.assign(g, { name: input.guardianName, relationship: input.relationship, smsConsent: input.smsConsent, preferredLanguage: input.preferredLanguage });
+    if (input.sectionId !== undefined) this.placeStudent(student.id, input.sectionId);
+    return { student, sibling };
+  }
+
+  private placeStudent(studentId: string, sectionId: string | null) {
+    const current = this.enrollments.find((e) => e.studentId === studentId && e.status === 'active');
+    if (current?.sectionId === sectionId) return;
+    if (current) this.enrollments = this.enrollments.filter((e) => e !== current);
+    if (sectionId) {
+      this.enrollments.push({ id: uid('enr'), studentId, sectionId, schoolYearId: seed.schoolYear.id, status: 'active', effectiveDate: this.today });
+    }
+  }
+
+  async saveStudent(input: StudentInput) {
+    const { student } = this.upsertStudent(input);
+    await this.logAudit(input.id ? 'student.update' : 'student.create', student.id, `${student.firstName} ${student.lastName}`);
+    this.emit();
+    return student;
+  }
+
+  async importStudents(inputs: StudentInput[]) {
+    let linkedSiblings = 0;
+    for (const input of inputs) if (this.upsertStudent(input).sibling) linkedSiblings++;
+    await this.logAudit('student.import', `${inputs.length} rows`, `${linkedSiblings} linked to an existing guardian`);
+    this.emit();
+    return { created: inputs.length, linkedSiblings };
+  }
+
+  async assignStudents(assignments: Record<string, string | null>, label: string) {
+    this.lastAssign = { label, snapshot: structuredClone(this.enrollments) };
+    Object.entries(assignments).forEach(([studentId, sectionId]) => this.placeStudent(studentId, sectionId));
+    await this.logAudit('student.assign', label, `${Object.keys(assignments).length} students`);
+    this.emit();
+  }
+
+  async undoLastAssign() {
+    if (!this.lastAssign) return null;
+    const { label, snapshot } = this.lastAssign;
+    this.enrollments = snapshot;
+    this.lastAssign = null;
+    await this.logAudit('student.assign_undo', label);
+    this.emit();
+    return label;
+  }
+
+  async setEnrollmentStatus(studentId: string, status: Enrollment['status'], effectiveDate: ISODate) {
+    const e = this.enrollments.find((x) => x.studentId === studentId && x.status === 'active');
+    if (!e) throw new Error('Student is not in a section.');
+    e.status = status;
+    e.effectiveDate = effectiveDate;
+    await this.logAudit(`student.${status}`, studentId, `effective ${effectiveDate}`);
+    this.emit();
+  }
+
+  async reissueQr(studentId: string) {
+    const s = this.students.find((x) => x.id === studentId);
+    if (!s) throw new Error('Student not found');
+    // Old card stops working: keep a revoked copy so scanning it shows "card revoked".
+    this.students.push({ ...s, id: `${s.id}-old-${Date.now()}`, qrStatus: 'revoked' });
+    s.qrToken = this.newToken();
+    s.qrStatus = 'active';
+    await this.logAudit('student.qr_reissue', studentId, `${s.firstName} ${s.lastName}`);
+    this.emit();
+    return s;
+  }
+
+  async sendTestSms(to: string) {
+    const msg: SmsMessage = {
+      id: uid('sms'), to, body: `Doorbell test message from ${this.settings.schoolName}. If you got this, SMS works.`,
+      kind: 'test', status: 'sent', createdAt: this.nowIso(), attempts: 1,
+    };
+    this.sms.unshift(msg);
+    await this.logAudit('sms.test', to);
+    this.emit();
+    return msg;
   }
 
   subscribe(listener: () => void) {
