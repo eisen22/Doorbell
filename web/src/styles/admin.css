@@ -260,3 +260,22 @@ select.input { padding-right: 8px; }
 }
 @media (max-width: 1080px) { .sms-layout { grid-template-columns: 1fr; } .phone-col { position: static; height: 520px; } }
 @media (max-width: 860px) { .login-card { grid-template-columns: 1fr; } .login-art { display: none; } }
+
+/* ---------- absence watch + sms grouping ---------- */
+.sort-pick { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.sort-pick .input { color: var(--ink); font-weight: 600; }
+.fchip.sm { min-height: 32px; font-size: 13px; }
+.watch-table .num { text-align: center; width: 92px; }
+.watch-table .cell-person > span { gap: 4px; align-items: flex-start; }
+.watch-table td.num b { display: inline-grid; place-items: center; min-width: 34px; height: 34px; border-radius: 10px; font-size: 16px; font-weight: 800; }
+.n-absent { background: var(--absent-bg); color: var(--absent); }
+.n-late { background: var(--late-bg); color: var(--late); }
+.n-total { background: var(--ink); color: #fff; cursor: help; }
+.n-zero { background: var(--surface); color: var(--muted); }
+.sms-day + .sms-day { margin-top: 10px; }
+.sms-day ul { list-style: none; margin: 0; padding: 0; }
+.sms-day-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; background: var(--surface); border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 800; margin: 0 0 4px; }
+.sms-day-head b { font-size: 12px; color: var(--muted); font-weight: 700; }
+.watch-table td a.link.block { display: flex; width: max-content; margin-top: 2px; }
+.watch-table .cell-person { text-decoration: none; color: inherit; }
+.watch-table .cell-person strong:hover { text-decoration: underline; }
