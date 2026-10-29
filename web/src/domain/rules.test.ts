@@ -89,3 +89,25 @@ describe('sms helpers', () => {
     expect(smsSegments('x'.repeat(161))).toBe(2);
   });
 });
+
+import { classNow, classPhase } from './classes';
+import type { Section } from './types';
+
+describe('teachers with several classes', () => {
+  const base = { classDays: [1, 2, 3, 4, 5], scanWindowMins: 30, lateCutoffMins: 15, autoFinalizeMins: 45 };
+  const am = { id: 'am', name: 'K - Apple', schedule: { ...base, startTime: '08:00', endTime: '11:30' } } as Section;
+  const pm = { id: 'pm', name: 'K - Cherry', schedule: { ...base, startTime: '12:30', endTime: '16:00' } } as Section;
+  it('shows the class in session, then the next one, then the last one', () => {
+    expect(classNow([pm, am], '08:30')?.id).toBe('am');
+    expect(classNow([pm, am], '07:00')?.id).toBe('am');
+    expect(classNow([pm, am], '11:50')?.id).toBe('pm');
+    expect(classNow([pm, am], '13:10')?.id).toBe('pm');
+    expect(classNow([pm, am], '21:00')?.id).toBe('pm');
+  });
+  it('knows when a class is open for scanning', () => {
+    expect(classPhase(am, '07:35')).toBe('now');
+    expect(classPhase(am, '07:20')).toBe('next');
+    expect(classPhase(am, '12:00')).toBe('done');
+    expect(classPhase(am, '09:00', '2026-10-31')).toBe('off'); // Saturday
+  });
+});

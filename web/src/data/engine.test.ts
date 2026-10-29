@@ -53,7 +53,7 @@ describe('engine with demo data', () => {
   it('teachers only see their own section alerts; confirm locks the day', async () => {
     const e = make();
     await e.signIn('jose.ramirez@sunnyside.edu.ph', DEMO_PASSWORD);
-    expect((await e.listNotifications()).every((n) => n.sectionId === 'sec-mango')).toBe(true);
+    expect((await e.listNotifications()).every((n) => n.sectionId === 'sec-mango' || n.sectionId === 'all')).toBe(true);
     await e.confirmDay('sec-mango', '2026-10-29');
     const row = (await e.getRoster('sec-mango', '2026-10-29')).find((r) => r.record?.status === 'absent')!;
     await expect(e.setStatus({ sectionId: 'sec-mango', date: '2026-10-29', studentId: row.student.id, status: 'present' })).rejects.toThrow(/reason/i);
@@ -65,5 +65,28 @@ describe('engine with demo data', () => {
     const rows = await e.listAttention(3);
     expect(rows.length).toBeGreaterThanOrEqual(3);
     expect(rows.every((r) => r.streak.count >= 3)).toBe(true);
+  });
+
+  it('a teacher can handle a morning and an afternoon class', async () => {
+    const e = make();
+    const t = await e.signIn('maria.santos@sunnyside.edu.ph', DEMO_PASSWORD);
+    expect(t.sectionIds).toEqual(['sec-apple', 'sec-cherry']);
+    expect(t.sectionId).toBe('sec-apple'); // 7:50 AM: the morning class
+    await e.signIn('admin@sunnyside.edu.ph', DEMO_PASSWORD);
+    const cherry = await e.getSection('sec-cherry');
+    // Overlapping times are refused; a different time slot is fine.
+    await expect(e.saveSection({ ...cherry, schedule: { ...cherry.schedule, startTime: '10:00' } })).rejects.toThrow(/same time/);
+  });
+
+  it('calendar changes by the admin alert every teacher', async () => {
+    const e = make();
+    await e.signIn('admin@sunnyside.edu.ph', DEMO_PASSWORD);
+    await e.declareSuspension('2026-10-30', 'Class suspension: typhoon');
+    await e.signIn('jose.ramirez@sunnyside.edu.ph', DEMO_PASSWORD);
+    const note = (await e.listNotifications()).find((n) => n.kind === 'calendar');
+    expect(note?.title).toMatch(/Classes suspended/);
+    expect(note?.read).toBe(false);
+    await e.markNotificationsRead([note!.id]);
+    expect((await e.listNotifications()).find((n) => n.id === note!.id)?.read).toBe(true);
   });
 });

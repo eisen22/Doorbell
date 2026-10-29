@@ -8,6 +8,7 @@ import type { StudentInput, StudentRow } from '../../data/repository';
 import { downloadTemplate, readRows, validateRows, type ParsedRow } from '../../lib/studentImport';
 import { useLive, useRepo } from '../../lib/repo';
 import { Avatar, Card, Empty, Modal, Skeleton, Toast } from '../../components/ui';
+import { DatePicker } from '../../components/DatePicker';
 
 type Filter = 'all' | 'unassigned' | string; // or a section id
 
@@ -44,13 +45,6 @@ export function AdminStudents() {
     flash(`${selected.size} students moved. You can undo this.`);
     setSelected(new Set());
   };
-
-  const toInput = (r: StudentRow): StudentInput => ({
-    id: r.student.id, lrn: r.student.lrn, firstName: r.student.firstName, middleName: r.student.middleName, lastName: r.student.lastName,
-    birthdate: r.student.birthdate, sex: r.student.sex, guardianName: r.guardian?.name ?? '', guardianMobile: r.guardian ? displayPhMobile(r.guardian.mobile).replace(/\s/g, '') : '',
-    relationship: r.guardian?.relationship ?? 'Mother', smsConsent: r.guardian?.smsConsent ?? false, preferredLanguage: r.guardian?.preferredLanguage ?? 'en',
-    sectionId: r.enrollment?.status === 'active' ? r.enrollment.sectionId : null,
-  });
 
   return (
     <div className="page">
@@ -100,14 +94,14 @@ export function AdminStudents() {
                   return (
                     <tr key={r.student.id} className={left ? 'dim' : ''}>
                       <td><input type="checkbox" checked={selected.has(r.student.id)} onChange={() => toggle(r.student.id)} aria-label={`Select ${r.student.firstName}`} /></td>
-                      <td><div className="cell-person"><Avatar first={r.student.firstName} last={r.student.lastName} tone={r.section?.color} /><span><strong>{r.student.lastName}, {r.student.firstName}</strong><span className="muted small">{r.student.sex === 'M' ? 'Boy' : 'Girl'} · {r.student.birthdate}{r.student.lrn ? ` · LRN ${r.student.lrn}` : ''}</span></span></div></td>
+                      <td><div className="cell-person"><Avatar first={r.student.firstName} last={r.student.lastName} tone={r.section?.color} /><span><button className="name-link" onClick={() => setEdit(toStudentInput(r))} title="Edit student">{r.student.lastName}, {r.student.firstName}</button><span className="muted small">{r.student.sex === 'M' ? 'Boy' : 'Girl'} · {r.student.birthdate}{r.student.lrn ? ` · LRN ${r.student.lrn}` : ''}</span></span></div></td>
                       <td>{left ? <span className="tag tag-off">{r.enrollment!.status === 'transferred' ? 'Transferred' : 'Dropped'} {r.enrollment!.endDate}</span>
                         : r.section ? <span className="tag" style={{ background: r.section.color }}>{r.section.name}</span> : <span className="tag tag-warn">Not in a section</span>}</td>
                       <td>{r.guardian ? <>{r.guardian.name}<span className="muted small block">{r.guardian.relationship}{r.guardian.studentIds.length > 1 ? ` · ${r.guardian.studentIds.length} children` : ''}</span></> : '—'}</td>
                       <td className="mono">{r.guardian ? displayPhMobile(r.guardian.mobile) : '—'}{r.guardian?.numberStatus === 'failed' && <span className="num-status bad"><AlertTriangle size={13} /> Needs update</span>}</td>
                       <td>{r.guardian?.smsConsent ? <span className="tag tag-ok">Yes</span> : <span className="tag tag-off">No</span>}</td>
                       <td className="row-actions">
-                        <button className="icon-btn sm" onClick={() => setEdit(toInput(r))} aria-label={`Edit ${r.student.firstName}`} title="Edit"><Pencil size={15} /></button>
+                        <button className="icon-btn sm" onClick={() => setEdit(toStudentInput(r))} aria-label={`Edit ${r.student.firstName}`} title="Edit"><Pencil size={15} /></button>
                         <button className="icon-btn sm" title="Reissue ID card (lost or damaged)" aria-label="Reissue QR" onClick={async () => { await repo.reissueQr(r.student.id); flash(`New card code for ${r.student.firstName}. The old card is now revoked. Print it on the ID Cards page.`); }}><QrCode size={15} /></button>
                         {r.enrollment?.status === 'active' && <button className="icon-btn sm" title="Transfer or drop" aria-label="Transfer or drop" onClick={() => setLeave(r)}><LogOut size={15} /></button>}
                       </td>
@@ -123,13 +117,20 @@ export function AdminStudents() {
       {edit && <StudentModal input={edit} sections={data.sections} onClose={() => setEdit(null)} onSaved={(m) => { setEdit(null); flash(m); }} />}
       {importOpen && <ImportModal sections={data.sections} existing={data.rows} onClose={() => setImportOpen(false)} onDone={(m) => { setImportOpen(false); flash(m); }} />}
       {assignOpen && <AssignModal rows={data.rows} sections={data.sections} onClose={() => setAssignOpen(false)} onDone={(m) => { setAssignOpen(false); flash(m); }} />}
-      {leave && <LeaveModal row={leave} onClose={() => setLeave(null)} onDone={(m) => { setLeave(null); flash(m); }} />}
+      {leave && <LeaveModal row={leave} sections={data.sections} onClose={() => setLeave(null)} onDone={(m) => { setLeave(null); flash(m); }} />}
       <Toast message={toast} />
     </div>
   );
 }
 
-function StudentModal({ input, sections, onClose, onSaved }: { input: StudentInput; sections: Section[]; onClose: () => void; onSaved: (m: string) => void }) {
+export const toStudentInput = (r: StudentRow): StudentInput => ({
+  id: r.student.id, lrn: r.student.lrn, firstName: r.student.firstName, middleName: r.student.middleName, lastName: r.student.lastName,
+  birthdate: r.student.birthdate, sex: r.student.sex, guardianName: r.guardian?.name ?? '', guardianMobile: r.guardian ? displayPhMobile(r.guardian.mobile).replace(/\s/g, '') : '',
+  relationship: r.guardian?.relationship ?? 'Mother', smsConsent: r.guardian?.smsConsent ?? false, preferredLanguage: r.guardian?.preferredLanguage ?? 'en',
+  sectionId: r.enrollment?.status === 'active' ? r.enrollment.sectionId : null,
+});
+
+export function StudentModal({ input, sections, onClose, onSaved }: { input: StudentInput; sections: Section[]; onClose: () => void; onSaved: (m: string) => void }) {
   const repo = useRepo();
   const [f, setF] = useState(input);
   const [error, setError] = useState<string | null>(null);
@@ -154,7 +155,7 @@ function StudentModal({ input, sections, onClose, onSaved }: { input: StudentInp
         <label className="field"><span>LRN (optional)</span><input className="input" value={f.lrn ?? ''} onChange={(e) => set({ lrn: e.target.value || undefined })} /></label>
       </div>
       <div className="form-row">
-        <label className="field"><span>Birthdate</span><input type="date" className="input" value={f.birthdate} onChange={(e) => set({ birthdate: e.target.value })} /></label>
+        <div className="field"><span>Birthdate</span><DatePicker value={f.birthdate} onChange={(d) => set({ birthdate: d })} max={manilaToday()} birthdate quick={[]} placeholder="Choose birthdate" ariaLabel="Birthdate" /></div>
         <label className="field"><span>Sex</span><select className="input" value={f.sex} onChange={(e) => set({ sex: e.target.value as 'M' | 'F' })}><option value="M">Male</option><option value="F">Female</option></select></label>
       </div>
       <label className="field"><span>Section</span>
@@ -294,21 +295,50 @@ function AssignModal({ rows, sections, onClose, onDone }: { rows: StudentRow[]; 
   );
 }
 
-function LeaveModal({ row, onClose, onDone }: { row: StudentRow; onClose: () => void; onDone: (m: string) => void }) {
+export function LeaveModal({ row, sections = [], onClose, onDone }: { row: StudentRow; sections?: Section[]; onClose: () => void; onDone: (m: string) => void }) {
   const repo = useRepo();
-  const [status, setStatus] = useState<'transferred' | 'dropped'>('transferred');
+  const others = sections.filter((s) => s.id !== row.enrollment?.sectionId && !s.archived);
+  const [status, setStatus] = useState<'move' | 'transferred' | 'dropped'>(others.length ? 'move' : 'transferred');
+  const [target, setTarget] = useState(others[0]?.id ?? '');
   const [date, setDate] = useState(manilaToday());
+  const name = `${row.student.firstName} ${row.student.lastName}`;
+  const save = async () => {
+    if (status === 'move') {
+      const to = others.find((s) => s.id === target);
+      if (!to) return;
+      await repo.assignStudents({ [row.student.id]: to.id }, `Moved ${name} to ${to.name}`);
+      onDone(`${name} moved to ${to.name}. Past attendance stays with the old section.`);
+      return;
+    }
+    await repo.setEnrollmentStatus(row.student.id, status, date);
+    onDone(`${name} marked ${status}. History is kept; no more attendance or SMS.`);
+  };
   return (
-    <Modal title={`${row.student.firstName} is leaving`} onClose={onClose} footer={<>
+    <Modal title={`Transfer or drop ${row.student.firstName}`} onClose={onClose} footer={<>
       <button className="btn" onClick={onClose}>Cancel</button>
-      <button className="btn btn-ink" onClick={async () => { await repo.setEnrollmentStatus(row.student.id, status, date); onDone(`${row.student.firstName} marked ${status}. History is kept; no more attendance or SMS.`); }}>Save</button>
+      <button className={`btn ${status === 'move' ? 'btn-ink' : 'btn-danger'}`} onClick={save} disabled={status === 'move' && !target}>{status === 'move' ? 'Move student' : status === 'transferred' ? 'Mark transferred' : 'Mark dropped'}</button>
     </>}>
-      <div className="chips">
-        <button className={`fchip ${status === 'transferred' ? 'fchip-on' : ''}`} onClick={() => setStatus('transferred')}>Transferred to another school</button>
-        <button className={`fchip ${status === 'dropped' ? 'fchip-on' : ''}`} onClick={() => setStatus('dropped')}>Dropped out</button>
+      <p className="muted small">{name}{row.section ? ` · now in ${row.section.name}` : ''}</p>
+      <div className="leave-options" role="radiogroup" aria-label="What is happening">
+        {others.length > 0 && (
+          <label className={`type-opt ${status === 'move' ? 'on' : ''}`}><input type="radio" name="leave" checked={status === 'move'} onChange={() => setStatus('move')} />
+            <span><b>Move to another section</b><small>Stays in this school, changes class.</small></span></label>
+        )}
+        <label className={`type-opt ${status === 'transferred' ? 'on' : ''}`}><input type="radio" name="leave" checked={status === 'transferred'} onChange={() => setStatus('transferred')} />
+          <span><b>Transferred to another school</b><small>Leaves the class list from the effective date.</small></span></label>
+        <label className={`type-opt ${status === 'dropped' ? 'on' : ''}`}><input type="radio" name="leave" checked={status === 'dropped'} onChange={() => setStatus('dropped')} />
+          <span><b>Dropped out</b><small>Stops attending school.</small></span></label>
       </div>
-      <label className="field"><span>Effective date</span><input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-      <p className="muted small">Records are never deleted. From this date the child is not on the class list and no SMS is sent.</p>
+      {status === 'move' ? (
+        <label className="field"><span>New section</span>
+          <select className="input" value={target} onChange={(e) => setTarget(e.target.value)}>
+            {others.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+      ) : (
+        <div className="field"><span>Effective date</span><DatePicker value={date} onChange={setDate} ariaLabel="Effective date" /></div>
+      )}
+      <p className="muted small">Records are never deleted. {status === 'move' ? 'From today the child appears on the new class list.' : 'From this date the child is not on the class list and no SMS is sent.'}</p>
     </Modal>
   );
 }

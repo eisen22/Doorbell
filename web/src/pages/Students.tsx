@@ -3,16 +3,16 @@ import { MessageSquare, MessageSquareOff, AlertTriangle, BadgeCheck, HelpCircle 
 import { displayPhMobile } from '../domain/rules';
 import { useLive } from '../lib/repo';
 import { Avatar, Card, Empty, Skeleton, StatusChip, StreakChip } from '../components/ui';
+import { ClassSwitch, loadMyClasses, useClassParam } from '../lib/classes';
 
 export function Students() {
   const [params, setParams] = useSearchParams();
   const q = (params.get('q') ?? '').toLowerCase();
+  const [classId, setClass] = useClassParam();
   const { data } = useLive(async (r) => {
-    const session = (await r.getSession())!;
-    const today = await r.getToday();
-    const section = await r.getSection(session.sectionId!);
-    return { section, roster: await r.getRoster(section.id, today.date) };
-  });
+    const { today, classes, section } = await loadMyClasses(r, classId);
+    return { today, classes, section, roster: await r.getRoster(section.id, today.date) };
+  }, [classId]);
   if (!data) return <div className="page"><Skeleton h={44} w={240} /><div className="card"><Skeleton h={400} /></div></div>;
 
   const rows = data.roster.filter((r) =>
@@ -25,8 +25,9 @@ export function Students() {
           <p className="eyebrow">{data.section.name} · {data.roster.length} learners</p>
           <h1>My Students</h1>
         </div>
-        <input className="input" placeholder="Filter by child or guardian" value={params.get('q') ?? ''} onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {})} aria-label="Filter students" />
+        <input className="input" placeholder="Filter by child or guardian" value={params.get('q') ?? ''} onChange={(e) => { const p = new URLSearchParams(params); if (e.target.value) p.set('q', e.target.value); else p.delete('q'); setParams(p); }} aria-label="Filter students" />
       </div>
+      <ClassSwitch classes={data.classes} value={data.section.id} onChange={setClass} time={data.today.time} date={data.today.actualDate} />
       <Card>
         {rows.length === 0 ? <Empty title="No match" hint="Try another name." /> : (
           <div className="table-wrap">

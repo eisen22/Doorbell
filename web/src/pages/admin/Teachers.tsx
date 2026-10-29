@@ -1,22 +1,27 @@
 import { useState } from 'react';
 import { Plus, Pencil, UserX, UserCheck, Info } from 'lucide-react';
-import { displayPhMobile, normalizePhMobile } from '../../domain/rules';
+import { displayPhMobile, normalizePhMobile, to12h } from '../../domain/rules';
+import type { Section, Teacher } from '../../domain/types';
 import type { TeacherInput } from '../../data/repository';
 import { useLive, useRepo } from '../../lib/repo';
 import { Avatar, Card, Modal, Skeleton, Toast } from '../../components/ui';
 
-export function Teachers() {
+export const toTeacherInput = (t: Teacher): TeacherInput => ({ id: t.id, name: t.name, email: t.email, mobile: t.mobile ? displayPhMobile(t.mobile) : '' });
+
+/** Add or edit a teacher, including which classes they handle. */
+export function TeacherModal({ input, sections, teachers, onClose, onSaved }: {
+  input: TeacherInput; sections: Section[]; teachers: Teacher[]; onClose: () => void;
+  onSaved: (r: { name: string; email: string; tempPassword?: string }) => void;
+}) {
   const repo = useRepo();
-  const [edit, setEdit] = useState<TeacherInput | null>(null);
+  const [edit, setEdit] = useState(input);
+  const live = sections.filter((s) => !s.archived);
+  const [classes, setClasses] = useState<Set<string>>(new Set(live.filter((s) => input.id && s.teacherId === input.id).map((s) => s.id)));
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
-  const { data } = useLive(async (r) => ({ teachers: await r.listTeachers(), sections: await r.listSections() }));
-  if (!data) return <div className="page"><Skeleton h={400} /></div>;
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2800); };
+  const [busy, setBusy] = useState(false);
+  const nameOf = (id: string | null) => teachers.find((t) => t.id === id)?.name;
 
   const save = async () => {
-    if (!edit) return;
     if (!edit.name.trim()) return setError('Enter the teacher\'s name.');
     if (!/^\S+@\S+\.\S+$/.test(edit.email)) return setError('Enter a valid email address.');
     let mobile = edit.mobile?.trim();
@@ -25,37 +30,82 @@ export function Teachers() {
       if (!n) return setError('Mobile must look like 0917 123 4567.');
       mobile = n;
     }
+    setBusy(true);
     try {
       const res = await repo.saveTeacher({ ...edit, name: edit.name.trim(), email: edit.email.trim(), mobile });
-      if (res.tempPassword) setCreated({ name: res.teacher.name, email: res.teacher.email, password: res.tempPassword }); else flash('Teacher updated');
-      setEdit(null);
+      const id = res.teacher.id;
+      for (const s of live) {
+        const want = classes.has(s.id);
+        const has = s.teacherId === id;
+        if (want === has) continue;
+        await repo.saveSection({ id: s.id, name: s.name, color: s.color, capacity: s.capacity, schedule: s.schedule, teacherId: want ? id : null });
+      }
+      onSaved({ name: res.teacher.name, email: res.teacher.email, tempPassword: res.tempPassword });
     } catch (e) { setError((e as Error).message); }
+    setBusy(false);
   };
+
+  return (
+    <Modal title={edit.id ? `Edit ${input.name}` : 'Add teacher'} onClose={onClose} footer={<>
+      <button className="btn" onClick={onClose}>Cancel</button>
+      <button className="btn btn-ink" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
+    </>}>
+      <label className="field"><span>Full name</span><input className="input" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} autoFocus /></label>
+      <label className="field"><span>Email (used to sign in){edit.id ? ' · cannot be changed here' : ''}</span><input type="email" className="input" value={edit.email} disabled={!!edit.id} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></label>
+      <label className="field"><span>Mobile (optional, for alerts)</span><input className="input" value={edit.mobile} onChange={(e) => setEdit({ ...edit, mobile: e.target.value })} placeholder="0917 123 4567" /></label>
+      <fieldset className="checks class-checks">
+        <legend>Classes handled</legend>
+        {live.length === 0 && <p className="muted small">No sections yet. Add one on the Sections page.</p>}
+        {live.map((s) => {
+          const other = s.teacherId && s.teacherId !== edit.id ? nameOf(s.teacherId) : undefined;
+          return (
+            <label key={s.id}>
+              <input type="checkbox" checked={classes.has(s.id)} onChange={(e) => setClasses((c) => { const n = new Set(c); if (e.target.checked) n.add(s.id); else n.delete(s.id); return n; })} />
+              <span className="sec-dot sm" style={{ background: s.color }} /> {s.name}
+              <span className="muted small">{to12h(s.schedule.startTime)} to {to12h(s.schedule.endTime)}{other ? ` · now ${other} (will be replaced)` : ''}</span>
+            </label>
+          );
+        })}
+        <p className="muted small">A teacher can handle several classes as long as the class times do not overlap, for example a morning and an afternoon kindergarten class.</p>
+      </fieldset>
+      {error && <p className="error">{error}</p>}
+    </Modal>
+  );
+}
+
+export function Teachers() {
+  const repo = useRepo();
+  const [edit, setEdit] = useState<TeacherInput | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ name: string; email: string; password: string } | null>(null);
+  const { data } = useLive(async (r) => ({ teachers: await r.listTeachers(), sections: await r.listSections() }));
+  if (!data) return <div className="page"><Skeleton h={400} /></div>;
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2800); };
 
   return (
     <div className="page">
       <div className="page-head">
         <div><p className="eyebrow">{data.teachers.filter((t) => t.active !== false).length} active</p><h1>Teachers</h1></div>
-        <button className="btn btn-ink" onClick={() => { setEdit({ name: '', email: '', mobile: '' }); setError(null); }}><Plus size={17} /> Add teacher</button>
+        <button className="btn btn-ink" onClick={() => setEdit({ name: '', email: '', mobile: '' })}><Plus size={17} /> Add teacher</button>
       </div>
       <Card>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Teacher</th><th>Email</th><th>Mobile</th><th>Section</th><th>Status</th><th /></tr></thead>
+            <thead><tr><th>Teacher</th><th>Email</th><th>Mobile</th><th>Classes</th><th>Status</th><th /></tr></thead>
             <tbody>
               {data.teachers.map((t) => {
-                const sec = data.sections.find((s) => s.teacherId === t.id && !s.archived);
+                const secs = data.sections.filter((s) => s.teacherId === t.id && !s.archived).sort((a, b) => a.schedule.startTime.localeCompare(b.schedule.startTime));
                 const active = t.active !== false;
                 return (
                   <tr key={t.id} className={active ? '' : 'dim'}>
-                    <td><div className="cell-person"><Avatar first={t.name.split(' ')[0]} last={t.name.split(' ').slice(-1)[0]} tone={sec?.color} /><strong>{t.name}</strong></div></td>
+                    <td><div className="cell-person"><Avatar first={t.name.split(' ')[0]} last={t.name.split(' ').slice(-1)[0]} tone={secs[0]?.color} /><button className="name-link" onClick={() => setEdit(toTeacherInput(t))} title="Edit teacher">{t.name}</button></div></td>
                     <td>{t.email}</td>
                     <td className="mono">{t.mobile ? displayPhMobile(t.mobile) : '—'}</td>
-                    <td>{sec ? <span className="tag" style={{ background: sec.color }}>{sec.name}</span> : <span className="muted">Unassigned</span>}</td>
+                    <td>{secs.length ? <div className="tag-stack">{secs.map((sec) => <span key={sec.id} className="tag" style={{ background: sec.color }}>{sec.name} · {to12h(sec.schedule.startTime)}</span>)}</div> : <span className="muted">Unassigned</span>}</td>
                     <td><span className={`tag ${active ? 'tag-ok' : 'tag-off'}`}>{active ? 'Active' : 'Deactivated'}</span></td>
                     <td className="row-actions">
-                      <button className="icon-btn sm" onClick={() => { setEdit({ id: t.id, name: t.name, email: t.email, mobile: t.mobile ?? '' }); setError(null); }} aria-label={`Edit ${t.name}`}><Pencil size={15} /></button>
-                      <button className="icon-btn sm" onClick={async () => { await repo.setTeacherActive(t.id, !active); flash(active ? `${t.name} deactivated and removed from their section` : `${t.name} reactivated`); }} aria-label={active ? 'Deactivate' : 'Reactivate'}>{active ? <UserX size={15} /> : <UserCheck size={15} />}</button>
+                      <button className="icon-btn sm" onClick={() => setEdit(toTeacherInput(t))} aria-label={`Edit ${t.name}`}><Pencil size={15} /></button>
+                      <button className="icon-btn sm" onClick={async () => { await repo.setTeacherActive(t.id, !active); flash(active ? `${t.name} deactivated and removed from their classes` : `${t.name} reactivated`); }} aria-label={active ? 'Deactivate' : 'Reactivate'}>{active ? <UserX size={15} /> : <UserCheck size={15} />}</button>
                     </td>
                   </tr>
                 );
@@ -64,18 +114,13 @@ export function Teachers() {
           </table>
         </div>
       </Card>
-      <p className="muted small note-row"><Info size={14} /> Assign a teacher to a class on the Sections page. Adding a teacher creates their sign-in account with a temporary password. They can change it with Forgot password.</p>
+      <p className="muted small note-row"><Info size={14} /> Click a teacher's name to edit their details and classes. Adding a teacher creates their sign-in account with a temporary password. They can change it with Forgot password.</p>
 
       {edit && (
-        <Modal title={edit.id ? 'Edit teacher' : 'Add teacher'} onClose={() => setEdit(null)} footer={<>
-          <button className="btn" onClick={() => setEdit(null)}>Cancel</button>
-          <button className="btn btn-ink" onClick={save}>Save</button>
-        </>}>
-          <label className="field"><span>Full name</span><input className="input" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} autoFocus /></label>
-          <label className="field"><span>Email (used to sign in)</span><input type="email" className="input" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></label>
-          <label className="field"><span>Mobile (optional, for alerts)</span><input className="input" value={edit.mobile} onChange={(e) => setEdit({ ...edit, mobile: e.target.value })} placeholder="0917 123 4567" /></label>
-          {error && <p className="error">{error}</p>}
-        </Modal>
+        <TeacherModal input={edit} sections={data.sections} teachers={data.teachers} onClose={() => setEdit(null)} onSaved={(r) => {
+          setEdit(null);
+          if (r.tempPassword) setCreated({ name: r.name, email: r.email, password: r.tempPassword }); else flash('Teacher updated');
+        }} />
       )}
       {created && (
         <Modal title={"Account created"} onClose={() => setCreated(null)} footer={<button className="btn btn-ink" onClick={() => setCreated(null)}>Done</button>}>

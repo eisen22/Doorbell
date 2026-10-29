@@ -59,6 +59,8 @@ export const sections: Section[] = [
   { id: 'sec-apple', schoolYearId: 'sy-2026', name: 'Kindergarten I - Apple', gradeLevel: 'K', color: '#FFD9A8', schedule, capacity: 25, teacherId: 't-maria', archived: false },
   { id: 'sec-mango', schoolYearId: 'sy-2026', name: 'Kindergarten I - Mango', gradeLevel: 'K', color: '#D8F5A2', schedule, capacity: 25, teacherId: 't-jose', archived: false },
   { id: 'sec-banana', schoolYearId: 'sy-2026', name: 'Kindergarten II - Banana', gradeLevel: 'K', color: '#E4D6FA', schedule: { ...schedule, startTime: '12:30', endTime: '16:00' }, capacity: 25, teacherId: 't-ana', archived: false },
+  // Maria handles two classes: Apple in the morning and Cherry in the afternoon.
+  { id: 'sec-cherry', schoolYearId: 'sy-2026', name: 'Kindergarten II - Cherry', gradeLevel: 'K', color: '#FBD3E0', schedule: { ...schedule, startTime: '12:30', endTime: '16:00' }, capacity: 25, teacherId: 't-maria', archived: false },
 ];
 
 const FIRST_M = ['Juan', 'Miguel', 'Gabriel', 'Rafael', 'Joshua', 'Paolo', 'Andres', 'Carlo', 'Enzo', 'Lucas', 'Nathan', 'Ethan', 'Marco', 'Adrian', 'Daniel'];
@@ -129,7 +131,7 @@ export function demoAuth(engine: () => Engine): AuthAdapter {
     },
     demoAccounts: () => [
       { email: 'admin@sunnyside.edu.ph', password: DEMO_PASSWORD, label: 'School admin (Rosario Dizon)' },
-      { email: 'maria.santos@sunnyside.edu.ph', password: DEMO_PASSWORD, label: 'Teacher, Kinder I - Apple' },
+      { email: 'maria.santos@sunnyside.edu.ph', password: DEMO_PASSWORD, label: 'Teacher, Apple (AM) and Cherry (PM)' },
       { email: 'jose.ramirez@sunnyside.edu.ph', password: DEMO_PASSWORD, label: 'Teacher, Kinder I - Mango' },
     ],
   };
@@ -187,8 +189,8 @@ export function buildDemoState(today: ISODate, clock: Clock): EngineState {
       engine.finalize(sec.id, date, r() < 0.8 ? (state.teachers.get(sec.teacherId ?? '')?.name ?? 'Auto-confirm') : 'Auto-confirm', false, conf);
     });
 
-    // Today: about 60% of the morning class has arrived (only if today is a class day).
-    if (today <= schoolYear.end && isSchoolDay(today, sec.schedule, state.calendar) && sec.id !== 'sec-banana') {
+    // Today: about 60% of each morning class has arrived (only if today is a class day).
+    if (today <= schoolYear.end && isSchoolDay(today, sec.schedule, state.calendar) && toMinutes(sec.schedule.startTime) < toMinutes('12:00')) {
       let mins = toMinutes(sec.schedule.startTime) - 29;
       const id = `${sec.id}_${today}`;
       const day = { id, sectionId: sec.id, date: today, records: {} as Record<string, import('../../domain/types').AttendanceRecord> };

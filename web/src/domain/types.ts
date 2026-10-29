@@ -152,9 +152,10 @@ export interface SmsMessage {
 
 export interface AppNotification {
   id: string;
-  kind: 'streak' | 'sms_failed';
+  kind: 'streak' | 'sms_failed' | 'calendar';
   studentId?: string;
-  sectionId?: string;
+  sectionId?: string; // 'all' = every teacher (calendar changes)
+  date?: ISODate; // calendar notices: first affected day
   streak?: StreakInfo;
   title: string;
   body: string;

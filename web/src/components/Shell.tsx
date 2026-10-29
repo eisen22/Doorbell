@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutGrid, ClipboardCheck, Users, ScanLine, FileSpreadsheet, Bell, Settings as SettingsIcon,
+  LayoutGrid, ClipboardCheck, Users, FileSpreadsheet, Bell, Settings as SettingsIcon,
   Search, Menu, ChevronDown, CalendarDays, Shapes, GraduationCap, QrCode, ScrollText, LogOut, MessageSquareText, UserX,
 } from 'lucide-react';
 import { Logo, Skeleton } from './ui';
@@ -14,7 +14,6 @@ const TEACHER_NAV: NavItem[] = [
   { to: '/attendance', label: 'Attendance', Icon: ClipboardCheck },
   { to: '/students', label: 'My Students', Icon: Users },
   { to: '/calendar', label: 'Calendar', Icon: CalendarDays },
-  { to: '/scanner', label: 'Scanner', Icon: ScanLine },
   { to: '/reports', label: 'Reports', Icon: FileSpreadsheet },
   { to: '/notifications', label: 'Alerts', Icon: Bell, badge: 'alerts' },
   { to: '/sms', label: 'SMS Messages', Icon: MessageSquareText },
@@ -66,7 +65,7 @@ export function Shell() {
   if (isAdmin && !inAdmin) return <Navigate to="/admin" replace />;
   if (!isAdmin && inAdmin) return <Navigate to="/" replace />;
 
-  const needsSection = !isAdmin && !session.sectionId && !['/calendar', '/settings', '/sms'].includes(location.pathname);
+  const needsSection = !isAdmin && !session.sectionIds.length && !['/calendar', '/settings', '/sms'].includes(location.pathname);
 
   return (
     <div className="canvas">
@@ -121,7 +120,7 @@ export function Shell() {
           </header>
           <main className="content">
             {needsSection ? (
-              <div className="page"><div className="card"><h2 className="card-title">No section assigned yet</h2><p className="muted">Ask the school admin to assign you to a section. You can still view the calendar and settings.</p></div></div>
+              <div className="page"><div className="card"><h2 className="card-title">No class assigned yet</h2><p className="muted">Ask the school admin to assign you to a class. You can still view the calendar and settings.</p></div></div>
             ) : <Outlet />}
           </main>
         </div>

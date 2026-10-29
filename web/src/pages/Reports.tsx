@@ -5,6 +5,8 @@ import type { ISODate } from '../domain/types';
 import { exportAttendanceXlsx } from '../lib/excel';
 import { useLive, useRepo } from '../lib/repo';
 import { Card, Modal, Skeleton, Toast } from '../components/ui';
+import { DatePicker } from '../components/DatePicker';
+import { ClassSwitch, loadMyClasses, useClassParam } from '../lib/classes';
 
 export function Reports() {
   const repo = useRepo();
@@ -14,11 +16,11 @@ export function Reports() {
   const [warnOpen, setWarnOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [classId, setClass] = useClassParam();
   const { data } = useLive(async (r) => {
-    const session = (await r.getSession())!;
-    const today = await r.getToday();
-    return { session, today, section: await r.getSection(session.sectionId!), year: await r.getSchoolYear() };
-  });
+    const { session, today, classes, section } = await loadMyClasses(r, classId);
+    return { session, today, classes, section, year: await r.getSchoolYear(), calendar: await r.getCalendar() };
+  }, [classId]);
   if (!data) return <div className="page"><Skeleton h={300} /></div>;
   const start = from ?? `${data.today.date.slice(0, 8)}01`;
   const end = to ?? data.today.date;
@@ -51,6 +53,7 @@ export function Reports() {
   return (
     <div className="page">
       <div className="page-head"><div><p className="eyebrow">{data.section.name}</p><h1>Reports</h1></div></div>
+      <ClassSwitch classes={data.classes} value={data.section.id} onChange={setClass} />
       <div className="grid-2">
         <Card title="Export to Excel">
           <div className="chips">
@@ -59,8 +62,8 @@ export function Reports() {
             ))}
           </div>
           <div className="form-row">
-            <label className="field"><span>From</span><input type="date" className="input" value={start} max={end} onChange={(e) => setFrom(e.target.value)} /></label>
-            <label className="field"><span>To</span><input type="date" className="input" value={end} min={start} max={data.today.date} onChange={(e) => setTo(e.target.value)} /></label>
+            <div className="field"><span>From</span><DatePicker value={start} min={data.year.start} max={end} calendar={data.calendar} onChange={setFrom} ariaLabel="From" quick={[['First day of classes', data.year.start], ['Start of month', `${data.today.date.slice(0, 8)}01`]]} /></div>
+            <div className="field"><span>To</span><DatePicker value={end} min={start} max={data.today.date} calendar={data.calendar} onChange={setTo} ariaLabel="To" quick={[['Today', data.today.date]]} /></div>
           </div>
           <fieldset className="checks">
             <legend>Sheets</legend>

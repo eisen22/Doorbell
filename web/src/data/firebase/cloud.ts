@@ -89,7 +89,13 @@ export function createCloudEngine(): Engine {
   /* ---- reads: live listeners for the signed-in user's data ---- */
   let unsubs: Unsubscribe[] = [];
   let tick: ReturnType<typeof setInterval> | null = null;
-  const stop = () => { unsubs.forEach((u) => u()); unsubs = []; if (tick) clearInterval(tick); tick = null; };
+  let watchClasses: (() => void) | null = null;
+  const stop = () => {
+    unsubs.forEach((u) => u()); unsubs = [];
+    classUnsubs.forEach((u) => u()); classUnsubs = []; classKey = '';
+    watchClasses?.(); watchClasses = null;
+    if (tick) clearInterval(tick); tick = null;
+  };
 
   const listen = (col: Col, q: Query<DocumentData>) => new Promise<void>((resolve, reject) => {
     let first = true;
@@ -111,16 +117,33 @@ export function createCloudEngine(): Engine {
         listen('audit', query(collection(db, 'audit'), orderBy('at', 'desc'), limit(300))),
       ]);
     } else {
-      const section = [...engine.s.sections.values()].find((s) => s.teacherId === account.teacherId && !s.archived);
-      if (section) {
-        const mine = (col: Col) => query(collection(db, col), where('sectionId', '==', section.id));
-        await Promise.all([
-          listen('attendance', mine('attendance')), listen('confirmations', mine('confirmations')),
-          listen('sms', query(collection(db, 'sms'), where('sectionId', '==', section.id), orderBy('createdAt', 'desc'), limit(300))),
-          listen('notifications', query(collection(db, 'notifications'), where('sectionId', '==', section.id), orderBy('createdAt', 'desc'), limit(200))),
-        ]);
-      }
+      await listenToClasses(account);
     }
+  };
+
+  /* A teacher reads only their own classes. If the admin adds or removes a class, the listeners follow. */
+  let classUnsubs: Unsubscribe[] = [];
+  let classKey = '';
+  const listenToClasses = async (account: UserAccount) => {
+    const ids = engine.classesOf(account.teacherId).map((c) => c.id).slice(0, 29);
+    const key = ids.join(',');
+    if (key === classKey && classUnsubs.length) return;
+    classUnsubs.forEach((u) => u());
+    classUnsubs = [];
+    classKey = key;
+    const before = unsubs.length;
+    const inMine = [...ids, 'all'];
+    const jobs = [listen('notifications', query(collection(db, 'notifications'), where('sectionId', 'in', inMine), orderBy('createdAt', 'desc'), limit(200)))];
+    if (ids.length) {
+      const mine = (col: Col) => query(collection(db, col), where('sectionId', 'in', ids));
+      jobs.push(
+        listen('attendance', mine('attendance')), listen('confirmations', mine('confirmations')),
+        listen('sms', query(collection(db, 'sms'), where('sectionId', 'in', ids), orderBy('createdAt', 'desc'), limit(300))),
+      );
+    }
+    // listen() registers its unsubscribe in unsubs; move this group's handles to classUnsubs.
+    classUnsubs = unsubs.splice(before);
+    await Promise.all(jobs);
   };
 
   let resolveFirst: () => void = () => {};
@@ -150,6 +173,12 @@ export function createCloudEngine(): Engine {
       }
       await hydrate(account);
       engine.setSession(account);
+      if (account.role === 'teacher') {
+        watchClasses = engine.subscribe(() => {
+          const key = engine.classesOf(account.teacherId).map((c) => c.id).join(',');
+          if (key !== classKey) { engine.refreshSession(); void listenToClasses(account); }
+        });
+      }
       engine.catchUp();
       tick = setInterval(() => engine.catchUp(), 60_000);
       signInWaiter?.(account);

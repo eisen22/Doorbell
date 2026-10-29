@@ -10,7 +10,6 @@ import { Dashboard } from './pages/Dashboard';
 import { Attendance } from './pages/Attendance';
 import { Students } from './pages/Students';
 import { CalendarPage } from './pages/Calendar';
-import { Scanner } from './pages/Scanner';
 import { Reports } from './pages/Reports';
 import { Notifications } from './pages/Notifications';
 import { SettingsPage } from './pages/Settings';
@@ -37,7 +36,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="attendance" element={<Attendance />} />
             <Route path="students" element={<Students />} />
             <Route path="calendar" element={<CalendarPage />} />
-            <Route path="scanner" element={<Scanner />} />
             <Route path="reports" element={<Reports />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="settings" element={<SettingsPage />} />

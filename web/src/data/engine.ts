@@ -2,6 +2,7 @@
 // It keeps the school's data in memory and saves every change through a Persistence:
 //   demo mode  -> nothing is saved (data resets on reload)
 //   cloud mode -> Firestore (see data/firebase)
+import { classNow, sortByStart } from '../domain/classes';
 import {
   addDays, decideScan, describeStreak, isSchoolDay, manilaTime, manilaToday, recentSchoolDays,
   renderTemplate, shouldAlertStreak, shouldAutoFinalize, streakInfo, to12h, toMinutes, fromMinutes,
@@ -94,6 +95,9 @@ export function emptyState(meta: SchoolMeta, calendar: CalendarDay[] = []): Engi
 }
 
 const dayId = (sectionId: string, date: ISODate) => `${sectionId}_${date}`;
+const fmtDay = (d: ISODate) => new Date(`${d}T00:00:00`).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' });
+const schedulesOverlap = (a: Section['schedule'], b: Section['schedule']) =>
+  a.classDays.some((d) => b.classDays.includes(d)) && toMinutes(a.startTime) < toMinutes(b.endTime) && toMinutes(b.startTime) < toMinutes(a.endTime);
 let counter = 0;
 export const uid = (p: string) => `${p}-${Date.now().toString(36)}${(counter++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const byName = (a: Student, b: Student) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName);
@@ -147,12 +151,20 @@ export class Engine implements Repository {
     this.emit();
   }
 
+  /** Classes a teacher handles, earliest start first. */
+  classesOf(teacherId: string | undefined): Section[] {
+    if (!teacherId) return [];
+    return sortByStart([...this.s.sections.values()].filter((x) => x.teacherId === teacherId && !x.archived));
+  }
+
   setSession(account: UserAccount | null) {
     if (!account) { this.session = null; this.emit(); return; }
-    const section = account.teacherId
-      ? [...this.s.sections.values()].find((x) => x.teacherId === account.teacherId && !x.archived)
-      : undefined;
-    this.session = { uid: account.uid, name: account.name, email: account.email, role: account.role, teacherId: account.teacherId, sectionId: section?.id ?? null };
+    const classes = this.classesOf(account.teacherId);
+    const now = classNow(classes, this.clock.peek(), this.clock.today());
+    this.session = {
+      uid: account.uid, name: account.name, email: account.email, role: account.role, teacherId: account.teacherId,
+      sectionIds: classes.map((c) => c.id), sectionId: now?.id ?? classes[0]?.id ?? null,
+    };
     this.emit();
   }
 
@@ -170,11 +182,11 @@ export class Engine implements Repository {
   private writableSections(): Section[] {
     const all = [...this.s.sections.values()].filter((x) => !x.archived);
     if (!this.session) return [];
-    return this.session.role === 'admin' ? all : all.filter((x) => x.id === this.session!.sectionId);
+    return this.session.role === 'admin' ? all : all.filter((x) => this.session!.sectionIds.includes(x.id));
   }
   private visibleSectionIds(): Set<string> | null {
     if (!this.session || this.session.role === 'admin') return null; // null = all
-    return new Set(this.session.sectionId ? [this.session.sectionId] : []);
+    return new Set([...this.session.sectionIds, 'all']);
   }
 
   /* ---------- people ---------- */
@@ -437,9 +449,9 @@ export class Engine implements Repository {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
-  async markNotificationsRead() {
+  async markNotificationsRead(ids?: string[]) {
     for (const n of await this.listNotifications()) {
-      if (n.read) continue;
+      if (n.read || (ids && !ids.includes(n.id))) continue;
       n.read = true;
       this.put('notifications', n.id, n);
     }
@@ -502,28 +514,60 @@ export class Engine implements Repository {
   }
 
   async updateSchoolYear(patch: Partial<Pick<SchoolYear, 'name' | 'start' | 'end'>>) {
+    const before = this.year;
     this.s.meta = { ...this.s.meta, schoolYear: { ...this.year, ...patch } };
     this.saveMeta();
     await this.logAudit('schoolyear.update', this.year.name, `${this.year.start} to ${this.year.end}`);
+    const changed: string[] = [];
+    if (patch.start && patch.start !== before.start) changed.push(`first day of classes is now ${fmtDay(patch.start)}`);
+    if (patch.end && patch.end !== before.end) changed.push(`last day of classes is now ${fmtDay(patch.end)}`);
+    if (changed.length) this.notifyCalendar('School year dates changed', `The ${changed.join(' and the ')}.`, patch.start ?? patch.end);
     this.emit();
   }
 
+  /** Tells every teacher about a change to the school calendar. */
+  private notifyCalendar(title: string, body: string, date?: ISODate) {
+    const n: AppNotification = {
+      id: uid('cal'), kind: 'calendar', sectionId: 'all', date, createdAt: new Date().toISOString(), read: false,
+      title, body: `${body} Updated by ${this.actor()}.`,
+    };
+    this.s.notifications.set(n.id, n);
+    this.put('notifications', n.id, n);
+  }
+
   async saveCalendarDays(days: CalendarDay[]) {
+    if (!days.length) return;
     days.forEach((d) => this.s.calendar.set(d.date, d));
     this.saveCalendar();
-    await this.logAudit('calendar.update', days.length === 1 ? days[0].date : `${days[0]?.date} to ${days[days.length - 1]?.date}`, `${days[0]?.type}: ${days[0]?.label}`);
+    const first = days[0];
+    const last = days[days.length - 1];
+    const when = days.length === 1 ? fmtDay(first.date) : `${fmtDay(first.date)} to ${fmtDay(last.date)}`;
+    await this.logAudit('calendar.update', days.length === 1 ? first.date : `${first.date} to ${last.date}`, `${first.type}: ${first.label}`);
+    const noClass = first.type === 'holiday' || first.type === 'suspension' || first.type === 'break';
+    const title = first.type === 'suspension' ? `Classes suspended: ${when}`
+      : noClass ? `No classes: ${when}`
+      : first.type === 'exam' ? `Exam day: ${when}`
+      : first.type === 'halfday' ? `Half day: ${when}`
+      : first.type === 'makeup' ? `Make-up class: ${when}`
+      : `School event: ${when}`;
+    this.notifyCalendar(title, `${first.label}.${noClass ? ' Attendance is not taken and these days do not count in absence streaks.' : ''}`, first.date);
     this.emit();
   }
   async removeCalendarDays(dates: ISODate[]) {
+    if (!dates.length) return;
     dates.forEach((d) => this.s.calendar.delete(d));
     this.saveCalendar();
     await this.logAudit('calendar.clear', dates.length === 1 ? dates[0] : `${dates.length} days`);
+    const sorted = [...dates].sort();
+    const when = sorted.length === 1 ? fmtDay(sorted[0]) : `${fmtDay(sorted[0])} to ${fmtDay(sorted[sorted.length - 1])}`;
+    this.notifyCalendar(`Calendar change: ${when}`, `${sorted.length === 1 ? 'This day is' : 'These days are'} back to the regular class schedule.`, sorted[0]);
     this.emit();
   }
   async resetCalendar(days: CalendarDay[]) {
     this.s.calendar = new Map(days.map((d) => [d.date, d]));
     this.saveCalendar();
     await this.logAudit('calendar.reset', 'DepEd SY 2026-2027 template');
+    this.notifyCalendar('School calendar was reset', 'The calendar now follows the DepEd school year template. Check the Calendar page for holidays and breaks.');
     this.emit();
   }
   async declareSuspension(date: ISODate, label: string) {
@@ -570,8 +614,9 @@ export class Engine implements Repository {
 
   async saveSection(input: SectionInput) {
     if (input.teacherId) {
-      const clash = [...this.s.sections.values()].find((s) => s.teacherId === input.teacherId && s.id !== input.id && !s.archived);
-      if (clash) throw new Error(`That teacher already handles ${clash.name}. One teacher, one section.`);
+      // A teacher can handle several classes, as long as their times do not overlap.
+      const clash = [...this.s.sections.values()].find((s) => s.teacherId === input.teacherId && s.id !== input.id && !s.archived && schedulesOverlap(s.schedule, input.schedule));
+      if (clash) throw new Error(`That teacher already handles ${clash.name} at the same time (${to12h(clash.schedule.startTime)} to ${to12h(clash.schedule.endTime)}).`);
     }
     const existing = input.id ? this.s.sections.get(input.id) : undefined;
     const section: Section = existing

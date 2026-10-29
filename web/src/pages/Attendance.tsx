@@ -6,6 +6,8 @@ import { autoFinalizeTime, emptyCounts, recentSchoolDays, addDays, isSchoolDay, 
 import type { AttendanceStatus, ISODate, RosterRow } from '../domain/types';
 import { useLive, useRepo } from '../lib/repo';
 import { Avatar, Card, Empty, Modal, Skeleton, StatusChip, StreakChip, Toast } from '../components/ui';
+import { DatePicker } from '../components/DatePicker';
+import { ClassSwitch, loadMyClasses, useClassParam } from '../lib/classes';
 
 const OPTIONS: AttendanceStatus[] = ['present', 'late', 'absent', 'excused'];
 
@@ -23,20 +25,20 @@ export function Attendance() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [classId, setClass] = useClassParam();
 
   const { data } = useLive(async (r) => {
-    const session = (await r.getSession())!;
-    const today = await r.getToday();
-    const section = await r.getSection(session.sectionId!);
+    const { session, today, classes, section } = await loadMyClasses(r, classId);
     const calendar = await r.getCalendar();
+    const year = await r.getSchoolYear();
     const day = date ?? today.date;
     const roster = await r.getRoster(section.id, day);
     const confirmation = await r.getConfirmation(section.id, day);
-    return { session, today, section, calendar, day, roster, confirmation };
-  }, [date]);
+    return { session, today, classes, section, calendar, year, day, roster, confirmation };
+  }, [date, classId]);
 
   if (!data) return <div className="page"><Skeleton h={44} w={240} /><div className="card"><Skeleton h={400} /></div></div>;
-  const { today, section, calendar, day, roster, confirmation } = data;
+  const { today, classes, section, calendar, year, day, roster, confirmation } = data;
   const schoolDay = isSchoolDay(day, section.schedule, calendar);
   const counts = emptyCounts();
   let waiting = 0;
@@ -82,15 +84,17 @@ export function Attendance() {
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">{section.name}</p>
+          <p className="eyebrow">{section.name} · {to12h(section.schedule.startTime)} to {to12h(section.schedule.endTime)}</p>
           <h1>Attendance</h1>
         </div>
         <div className="date-nav">
           <button className="icon-btn" onClick={() => step(-1)} aria-label="Previous school day"><ChevronLeft size={18} /></button>
-          <input type="date" value={day} max={today.date} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="Date" />
+          <DatePicker value={day} min={year.start} max={today.date} calendar={calendar} onChange={setDate} ariaLabel="Date" quick={[['Today', today.date]]} />
           <button className="icon-btn" onClick={() => step(1)} disabled={day >= today.date} aria-label="Next school day"><ChevronRight size={18} /></button>
         </div>
       </div>
+
+      <ClassSwitch classes={classes} value={section.id} onChange={setClass} time={today.time} date={today.actualDate} />
 
       <div className="summary-bar">
         <div className="summary-counts">

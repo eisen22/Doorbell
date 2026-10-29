@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { CloudRain, RotateCcw, Pencil, Trash2, Flag } from 'lucide-react';
 import { DAY_KIND_META, DEPED_SY_2026_2027, countClassDays, dayKind, eachDate } from '../../domain/calendar';
-import { isoWeekday } from '../../domain/rules';
+import { addDays, isoWeekday } from '../../domain/rules';
+
+const fridayOf = (d: ISODate) => addDays(d, Math.max(0, 5 - isoWeekday(d)));
 import type { CalendarDay, CalendarDayType, ISODate } from '../../domain/types';
 import { useLive, useRepo } from '../../lib/repo';
 import { Card, Modal, Skeleton, Toast } from '../../components/ui';
 import { CalendarLegend, YearCalendar } from '../../components/YearCalendar';
+import { DatePicker } from '../../components/DatePicker';
 
 type EditType = CalendarDayType | 'class';
 
@@ -55,7 +58,7 @@ export function AdminCalendar() {
         date, type: draft.type as CalendarDayType, label, ...(draft.type === 'holiday' ? { scope: draft.scope } : {}),
       })));
     }
-    flash(`${dates.length} day${dates.length > 1 ? 's' : ''} updated. Attendance and streaks follow the new calendar.`);
+    flash(`${dates.length} day${dates.length > 1 ? 's' : ''} updated. Teachers were notified, and attendance and streaks follow the new calendar.`);
     setDraft(null);
   };
 
@@ -75,8 +78,8 @@ export function AdminCalendar() {
       </div>
       <Card title="First and last day of classes" action={<Flag size={18} />}>
         <div className="form-row year-row">
-          <label className="field"><span>First day of classes</span><input type="date" className="input" value={yearDraft?.start ?? year.start} onChange={(e) => setYearDraft({ start: e.target.value, end: yearDraft?.end ?? year.end })} /></label>
-          <label className="field"><span>Last day of classes (end of classes)</span><input type="date" className="input" value={yearDraft?.end ?? year.end} onChange={(e) => setYearDraft({ start: yearDraft?.start ?? year.start, end: e.target.value })} /></label>
+          <div className="field"><span>First day of classes</span><DatePicker value={yearDraft?.start ?? year.start} calendar={calendar} onChange={(d) => setYearDraft({ start: d, end: yearDraft?.end ?? year.end })} ariaLabel="First day of classes" quick={[['DepEd: June 8, 2026', '2026-06-08']]} /></div>
+          <div className="field"><span>Last day of classes (end of classes)</span><DatePicker value={yearDraft?.end ?? year.end} min={yearDraft?.start ?? year.start} calendar={calendar} onChange={(d) => setYearDraft({ start: yearDraft?.start ?? year.start, end: d })} ariaLabel="Last day of classes" quick={[['DepEd: April 8, 2027', '2027-04-08']]} /></div>
           <button className="btn btn-ink align-end" disabled={!yearDraft || yearDraft.end <= yearDraft.start} onClick={async () => { await repo.updateSchoolYear(yearDraft!); setYearDraft(null); flash('School year dates saved'); }}>Save dates</button>
         </div>
         <p className="muted small">DepEd SY 2026-2027: classes June 8, 2026 to April 8, 2027. Days outside these dates show as no class, and no attendance is taken.</p>
@@ -128,8 +131,8 @@ export function AdminCalendar() {
             </div>
           )}
           <div className="form-row">
-            <label className="field"><span>From</span><input type="date" className="input" value={draft.from} min={year.start.slice(0, 7) + '-01'} onChange={(e) => setDraft({ ...draft, from: e.target.value })} /></label>
-            <label className="field"><span>To (optional)</span><input type="date" className="input" value={draft.to} min={draft.from} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></label>
+            <div className="field"><span>From</span><DatePicker value={draft.from} min={year.start.slice(0, 7) + '-01'} calendar={calendar} onChange={(d) => setDraft({ ...draft, from: d, to: draft.to < d ? d : draft.to })} ariaLabel="From" /></div>
+            <div className="field"><span>To (optional)</span><DatePicker value={draft.to} min={draft.from} calendar={calendar} onChange={(d) => setDraft({ ...draft, to: d })} ariaLabel="To" quick={[['Same day', draft.from], ['Through Friday', fridayOf(draft.from)]]} /></div>
           </div>
           {draft.to > draft.from && draft.type !== 'makeup' && (
             <label className="check"><input type="checkbox" checked={draft.weekdaysOnly} onChange={(e) => setDraft({ ...draft, weekdaysOnly: e.target.checked })} /> Skip Saturdays and Sundays</label>
@@ -140,10 +143,10 @@ export function AdminCalendar() {
       {suspend && (
         <Modal title="Declare a class suspension" onClose={() => setSuspend(null)} footer={<>
           <button className="btn" onClick={() => setSuspend(null)}>Cancel</button>
-          <button className="btn btn-danger" onClick={async () => { await repo.declareSuspension(suspend.date, suspend.label); setSuspend(null); flash('Suspension saved. No absences or streak SMS for that day.'); }}>Declare suspension</button>
+          <button className="btn btn-danger" onClick={async () => { await repo.declareSuspension(suspend.date, suspend.label); setSuspend(null); flash('Suspension saved and teachers notified. No absences or streak SMS for that day.'); }}>Declare suspension</button>
         </>}>
-          <p>On a suspended day, children are not marked absent, it does not count toward 3-day streaks, and no absence SMS is sent.</p>
-          <label className="field"><span>Date</span><input type="date" className="input" value={suspend.date} onChange={(e) => setSuspend({ ...suspend, date: e.target.value })} /></label>
+          <p>On a suspended day, children are not marked absent, it does not count toward 3-day streaks, and no absence SMS is sent. Every teacher sees an alert about it right away.</p>
+          <div className="field"><span>Date</span><DatePicker value={suspend.date} min={year.start} max={year.end} calendar={calendar} onChange={(d) => setSuspend({ ...suspend, date: d })} ariaLabel="Suspension date" quick={[['Today', today.actualDate], ['Tomorrow', addDays(today.actualDate, 1)]]} /></div>
           <label className="field"><span>Reason</span><input className="input" value={suspend.label} onChange={(e) => setSuspend({ ...suspend, label: e.target.value })} /></label>
         </Modal>
       )}

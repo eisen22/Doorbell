@@ -11,7 +11,8 @@ export interface Session {
   email: string;
   role: Role;
   teacherId?: string;
-  sectionId: string | null; // teacher's own section
+  sectionIds: string[]; // every class this teacher handles, earliest start first
+  sectionId: string | null; // the class in session now (or next/last today); null when none assigned
 }
 
 export interface DemoAccount { email: string; password: string; label: string }
@@ -119,7 +120,7 @@ export interface Repository {
   simulateScan(sectionId: string): Promise<ScanResult>;
 
   listNotifications(): Promise<AppNotification[]>;
-  markNotificationsRead(): Promise<void>;
+  markNotificationsRead(ids?: string[]): Promise<void>;
   listSms(limit?: number): Promise<SmsMessage[]>;
   resendSms(id: string): Promise<void>;
   listAttention(minDays?: number): Promise<AttentionRow[]>;

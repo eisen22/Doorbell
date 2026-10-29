@@ -9,11 +9,11 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const { data } = useLive(async (r) => {
     const session = (await r.getSession())!;
-    return { session, settings: await r.getSettings(), section: session.sectionId ? await r.getSection(session.sectionId) : null };
+    const classes = await Promise.all(session.sectionIds.map((id) => r.getSection(id)));
+    return { session, settings: await r.getSettings(), classes };
   });
   if (!data) return <div className="page"><Skeleton h={300} /></div>;
-  const { session, settings, section } = data;
-  const s = section?.schedule;
+  const { session, settings, classes } = data;
   const sample = { count: 3, absent: 2, late: 1 };
 
   return (
@@ -24,7 +24,7 @@ export function SettingsPage() {
           <dl className="dl">
             <dt>Name</dt><dd>{session.name}</dd>
             <dt>Email</dt><dd>{session.email}</dd>
-            <dt>Section</dt><dd>{section?.name ?? 'Not assigned'}</dd>
+            <dt>{classes.length > 1 ? 'Classes' : 'Class'}</dt><dd>{classes.length ? classes.map((c) => c.name).join(', ') : 'Not assigned'}</dd>
           </dl>
           <button className="btn" onClick={async () => {
             try { await repo.sendPasswordReset(session.email); setMsg(`A password reset link was sent to ${session.email}.`); }
@@ -32,8 +32,8 @@ export function SettingsPage() {
           }}><KeyRound size={16} /> Change password</button>
           {msg && <p className="muted small">{msg}</p>}
         </Card>
-        {s && (
-          <Card title="Class schedule (set by admin)">
+        {classes.map(({ id, name, schedule: s }) => (
+          <Card key={id} title={classes.length > 1 ? `${name} schedule (set by admin)` : 'Class schedule (set by admin)'}>
             <dl className="dl">
               <dt>Class time</dt><dd>{to12h(s.startTime)} to {to12h(s.endTime)}</dd>
               <dt>Scanning opens</dt><dd>{to12h(fromMinutes(toMinutes(s.startTime) - s.scanWindowMins))}</dd>
@@ -43,7 +43,7 @@ export function SettingsPage() {
               <dt>Arrival SMS</dt><dd>{settings.arrivalSmsEnabled ? 'On' : 'Off'}</dd>
             </dl>
           </Card>
-        )}
+        ))}
       </div>
       <Card title="SMS messages parents receive">
         <div className="templates">
