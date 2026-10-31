@@ -49,7 +49,7 @@ export function AdminStudents() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">{data.rows.filter((r) => r.enrollment?.status === 'active').length} enrolled · {unassigned} not in a section</p><h1>Students</h1></div>
+        <div><h1>Students</h1><p className="page-sub">{data.rows.filter((r) => r.enrollment?.status === 'active').length} enrolled · {unassigned} not in a section</p></div>
         <div className="head-actions">
           <button className="btn" onClick={async () => { const l = await repo.undoLastAssign(); flash(l ? `Undid: ${l}` : 'Nothing to undo'); }}><Undo2 size={17} /> Undo last move</button>
           <button className="btn" onClick={() => setImportOpen(true)}><Upload size={17} /> Import Excel</button>

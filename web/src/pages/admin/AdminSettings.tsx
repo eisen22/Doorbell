@@ -20,7 +20,7 @@ export function AdminSettings() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">School-wide</p><h1>Settings &amp; SMS</h1></div>
+        <div><h1>Settings &amp; SMS</h1><p className="page-sub">School-wide</p></div>
         <button className="btn btn-ink" onClick={async () => { await repo.updateSettings(s); flash('Settings saved'); }}><Save size={17} /> Save changes</button>
       </div>
       <div className="grid-2">

@@ -1,0 +1,43 @@
+/* Doorbell design tokens. Change colors here, not in components. */
+:root {
+  --canvas: #bfddeb;
+  --frame: #ffffff;
+  --surface: #f4f5f6;
+  --surface-2: #ecedef;
+  --ink: #111111;
+  --ink-2: #3a3d42;
+  --muted: #6b7078;
+  --line: #e4e6e9;
+
+  --lime: #d8f5a2;
+  --lime-strong: #a9dc4f;
+  --peach: #ffd9a8;
+  --lavender: #e4d6fa;
+  --sky: #cde8f7;
+  --orange: #f8c27a;
+
+  --ok: #1f8a4c;
+  --ok-bg: #e3f6ea;
+  --late: #9a5b00;
+  --late-bg: #fff1d6;
+  --absent: #b42318;
+  --absent-bg: #fdecea;
+  --excused: #4a4fb0;
+  --excused-bg: #eceefd;
+
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
+
+  --shadow-soft: 0 1px 2px rgba(17, 17, 17, 0.04), 0 8px 24px rgba(17, 17, 17, 0.05);
+  --shadow-lift: 0 2px 4px rgba(17, 17, 17, 0.05), 0 14px 32px rgba(17, 17, 17, 0.08);
+
+  --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+}

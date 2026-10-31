@@ -68,8 +68,8 @@ export function AdminCalendar() {
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">{year.name} · {countClassDays(year, calendar)} class days</p>
           <h1>School Calendar</h1>
+          <p className="page-sub">{year.name} · {countClassDays(year, calendar)} class days</p>
         </div>
         <div className="head-actions">
           <button className="btn" onClick={() => setResetOpen(true)}><RotateCcw size={17} /> Reset to DepEd template</button>

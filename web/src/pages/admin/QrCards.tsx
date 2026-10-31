@@ -44,7 +44,7 @@ export function QrCards() {
   return (
     <div className="page">
       <div className="page-head no-print">
-        <div><p className="eyebrow">A code is created automatically for every student</p><h1>ID Cards</h1></div>
+        <div><h1>ID Cards</h1><p className="page-sub">A code is created automatically for every student</p></div>
         <button className="btn btn-ink" onClick={async () => { await repo.logAudit('cards.print', sec?.name ?? '', `${rows.length} ${layout}s`); window.print(); }} disabled={!rows.length}><Printer size={17} /> Print all {rows.length}</button>
       </div>
       <Card className="no-print">

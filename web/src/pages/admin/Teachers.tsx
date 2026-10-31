@@ -85,7 +85,7 @@ export function Teachers() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">{data.teachers.filter((t) => t.active !== false).length} active</p><h1>Teachers</h1></div>
+        <div><h1>Teachers</h1><p className="page-sub">{data.teachers.filter((t) => t.active !== false).length} active</p></div>
         <button className="btn btn-ink" onClick={() => setEdit({ name: '', email: '', mobile: '' })}><Plus size={17} /> Add teacher</button>
       </div>
       <Card>

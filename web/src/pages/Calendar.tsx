@@ -25,8 +25,8 @@ export function CalendarPage() {
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">{year.name} · {format(parseISO(year.start), 'MMM d, yyyy')} to {format(parseISO(year.end), 'MMM d, yyyy')}</p>
           <h1>School Calendar</h1>
+          <p className="page-sub">{year.name} · {format(parseISO(year.start), 'MMM d, yyyy')} to {format(parseISO(year.end), 'MMM d, yyyy')}</p>
         </div>
         <div className="cal-stats">
           <div title="Days learners are in school. DepEd's 201 also counts wellness-break and INSET days."><strong>{total}</strong><span>days in school</span></div>

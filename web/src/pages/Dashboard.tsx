@@ -69,8 +69,8 @@ export function Dashboard() {
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">{greet}, Teacher {session.name.split(' ')[0]}</p>
           <h1>Dashboard</h1>
+          <p className="page-sub">{greet}, Teacher {session.name.split(' ')[0]}</p>
         </div>
         <p className="muted">
           {format(parseISO(today.date), 'EEEE, MMMM d, yyyy')}

@@ -84,8 +84,8 @@ export function Attendance() {
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">{section.name} · {to12h(section.schedule.startTime)} to {to12h(section.schedule.endTime)}</p>
           <h1>Attendance</h1>
+          <p className="page-sub">{section.name} · {to12h(section.schedule.startTime)} to {to12h(section.schedule.endTime)}</p>
         </div>
         <div className="date-nav">
           <button className="icon-btn" onClick={() => step(-1)} aria-label="Previous school day"><ChevronLeft size={18} /></button>

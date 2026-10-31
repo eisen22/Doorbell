@@ -52,7 +52,7 @@ export function Reports() {
 
   return (
     <div className="page">
-      <div className="page-head"><div><p className="eyebrow">{data.section.name}</p><h1>Reports</h1></div></div>
+      <div className="page-head"><div><h1>Reports</h1><p className="page-sub">{data.section.name}</p></div></div>
       <ClassSwitch classes={data.classes} value={data.section.id} onChange={setClass} />
       <div className="grid-2">
         <Card title="Export to Excel">

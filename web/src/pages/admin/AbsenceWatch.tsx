@@ -71,7 +71,7 @@ export function AbsenceWatch() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">As of {format(parseISO(data.today.date), 'EEEE, MMMM d')} · school days only</p><h1>Absence Watch</h1></div>
+        <div><h1>Absence Watch</h1><p className="page-sub">As of {format(parseISO(data.today.date), 'EEEE, MMMM d')} · school days only</p></div>
         <label className="sort-pick"><ArrowDownUp size={16} />
           <select className="input" value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort by">
             <option value="days">Sort: most days first</option>

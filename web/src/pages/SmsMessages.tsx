@@ -42,7 +42,7 @@ export function SmsMessages() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">{repo.mode === 'demo' ? 'Demo: messages are simulated, nothing is actually sent' : 'Messages sent to parents and guardians'}</p><h1>SMS Messages</h1></div>
+        <div><h1>SMS Messages</h1><p className="page-sub">{repo.mode === 'demo' ? 'Demo: messages are simulated, nothing is actually sent' : 'Messages sent to parents and guardians'}</p></div>
         <div className="head-actions">
           <label className="sort-pick"><CalendarDays size={16} />
             <select className="input" value={day} onChange={(e) => setDay(e.target.value)} aria-label="Day">

@@ -94,7 +94,6 @@ export function Shell() {
             <form className="search" onSubmit={(e) => { e.preventDefault(); navigate(`${isAdmin ? '/admin/students' : '/students'}?q=${encodeURIComponent(q)}`); }}>
               <Search size={17} aria-hidden="true" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search students" aria-label="Search students" />
-              <kbd>Enter</kbd>
             </form>
             <div className="topbar-right">
               {!isAdmin && (

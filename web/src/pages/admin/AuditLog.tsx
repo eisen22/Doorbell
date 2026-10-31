@@ -11,7 +11,7 @@ export function AuditLog() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">Every change is recorded and cannot be edited</p><h1>Audit Log</h1></div>
+        <div><h1>Audit Log</h1><p className="page-sub">Every change is recorded and cannot be edited</p></div>
         <input className="input" placeholder="Filter by person, action or student" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Filter audit log" />
       </div>
       <Card>

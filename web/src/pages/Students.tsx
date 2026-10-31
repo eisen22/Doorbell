@@ -22,8 +22,8 @@ export function Students() {
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">{data.section.name} · {data.roster.length} learners</p>
           <h1>My Students</h1>
+          <p className="page-sub">{data.section.name} · {data.roster.length} learners</p>
         </div>
         <input className="input" placeholder="Filter by child or guardian" value={params.get('q') ?? ''} onChange={(e) => { const p = new URLSearchParams(params); if (e.target.value) p.set('q', e.target.value); else p.delete('q'); setParams(p); }} aria-label="Filter students" />
       </div>

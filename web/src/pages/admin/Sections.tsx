@@ -52,7 +52,7 @@ export function Sections() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">Click a section to see its teacher and students</p><h1>Sections</h1></div>
+        <div><h1>Sections</h1><p className="page-sub">Click a section to see its teacher and students</p></div>
         <div className="head-actions">
           <label className="check"><input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show archived</label>
           <button className="btn btn-ink" onClick={() => { setEdit(blank()); setError(null); }}><Plus size={17} /> Add section</button>

@@ -18,7 +18,7 @@ export function SettingsPage() {
 
   return (
     <div className="page">
-      <div className="page-head"><div><p className="eyebrow">Your account and class rules</p><h1>Settings</h1></div></div>
+      <div className="page-head"><div><h1>Settings</h1><p className="page-sub">Your account and class rules</p></div></div>
       <div className="grid-2">
         <Card title="Account">
           <dl className="dl">
