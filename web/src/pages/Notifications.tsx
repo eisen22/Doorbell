@@ -27,7 +27,7 @@ export function Notifications() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>Alerts</h1><p className="page-sub">Absences and lateness in a row, failed texts, and calendar changes from the admin</p></div>
+        <div><p className="eyebrow">Absences and lateness in a row, failed texts, and calendar changes from the admin</p><h1>Alerts</h1></div>
         <button className="btn" onClick={() => repo.markNotificationsRead()}><CheckCheck size={17} /> Mark all read</button>
       </div>
       <div className="chips">
